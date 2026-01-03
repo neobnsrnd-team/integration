@@ -2,6 +2,7 @@ package springware.mci.client.config;
 
 import lombok.Builder;
 import lombok.Getter;
+import springware.mci.client.circuitbreaker.CircuitBreakerConfig;
 import springware.mci.common.core.TransportType;
 import springware.mci.common.logging.LogLevel;
 import springware.mci.common.protocol.ProtocolConfig;
@@ -153,6 +154,12 @@ public class ClientConfig {
      * SSL 키 경로
      */
     private final String sslKeyPath;
+
+    /**
+     * 서킷 브레이커 설정
+     */
+    @Builder.Default
+    private final CircuitBreakerConfig circuitBreakerConfig = CircuitBreakerConfig.defaultConfig();
 
     /**
      * 기본 TCP 클라이언트 설정

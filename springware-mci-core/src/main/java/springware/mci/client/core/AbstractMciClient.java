@@ -1,6 +1,9 @@
 package springware.mci.client.core;
 
 import lombok.extern.slf4j.Slf4j;
+import springware.mci.client.circuitbreaker.CircuitBreaker;
+import springware.mci.client.circuitbreaker.CircuitBreakerConfig;
+import springware.mci.client.circuitbreaker.CircuitBreakerOpenException;
 import springware.mci.client.config.ClientConfig;
 import springware.mci.common.core.Message;
 import springware.mci.common.exception.ConnectionException;
@@ -26,6 +29,7 @@ public abstract class AbstractMciClient implements MciClient {
     protected final LayoutManager layoutManager;
     protected final MessageLogger messageLogger;
     protected final AtomicReference<ConnectionState> state = new AtomicReference<>(ConnectionState.DISCONNECTED);
+    protected final CircuitBreaker circuitBreaker;
 
     protected AbstractMciClient(ClientConfig config) {
         this(config, new DefaultLayoutManager(), new DefaultMessageLogger());
@@ -35,6 +39,13 @@ public abstract class AbstractMciClient implements MciClient {
         this.config = config;
         this.layoutManager = layoutManager;
         this.messageLogger = messageLogger;
+
+        // 서킷 브레이커 초기화
+        CircuitBreakerConfig cbConfig = config.getCircuitBreakerConfig();
+        this.circuitBreaker = new CircuitBreaker(
+                config.getClientId() != null ? config.getClientId() : "mci-client",
+                cbConfig != null ? cbConfig : CircuitBreakerConfig.defaultConfig()
+        );
 
         // 설정 검증
         config.validate();
@@ -69,10 +80,28 @@ public abstract class AbstractMciClient implements MciClient {
             throw new ConnectionException("Cannot connect: current state is " + state.get());
         }
 
-        if (config.isRetryEnabled()) {
-            connectWithRetry();
-        } else {
-            connectOnce();
+        // 서킷 브레이커 확인
+        if (!circuitBreaker.allowRequest()) {
+            state.set(ConnectionState.FAILED);
+            throw new CircuitBreakerOpenException(
+                    String.format("CircuitBreaker is OPEN for %s:%d, remaining time: %dms",
+                            config.getHost(), config.getPort(), circuitBreaker.getRemainingOpenTime()),
+                    circuitBreaker.getState(),
+                    circuitBreaker.getRemainingOpenTime());
+        }
+
+        try {
+            if (config.isRetryEnabled()) {
+                connectWithRetry();
+            } else {
+                connectOnce();
+            }
+            // 연결 성공시 서킷 브레이커에 알림
+            circuitBreaker.onSuccess();
+        } catch (Exception e) {
+            // 연결 실패시 서킷 브레이커에 알림
+            circuitBreaker.onFailure(e);
+            throw e;
         }
     }
 
@@ -245,6 +274,13 @@ public abstract class AbstractMciClient implements MciClient {
      */
     public MessageLogger getMessageLogger() {
         return messageLogger;
+    }
+
+    /**
+     * 서킷 브레이커 조회
+     */
+    public CircuitBreaker getCircuitBreaker() {
+        return circuitBreaker;
     }
 
     // 하위 클래스에서 구현할 메서드들
