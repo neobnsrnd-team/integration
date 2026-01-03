@@ -5,6 +5,8 @@ import springware.mci.client.circuitbreaker.CircuitBreaker;
 import springware.mci.client.circuitbreaker.CircuitBreakerConfig;
 import springware.mci.client.circuitbreaker.CircuitBreakerOpenException;
 import springware.mci.client.config.ClientConfig;
+import springware.mci.client.healthcheck.HealthCheckConfig;
+import springware.mci.client.healthcheck.HealthChecker;
 import springware.mci.common.core.Message;
 import springware.mci.common.exception.ConnectionException;
 import springware.mci.common.exception.TimeoutException;
@@ -18,6 +20,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 /**
  * MCI 클라이언트 추상 기본 클래스
@@ -281,6 +284,31 @@ public abstract class AbstractMciClient implements MciClient {
      */
     public CircuitBreaker getCircuitBreaker() {
         return circuitBreaker;
+    }
+
+    /**
+     * 헬스 체커 생성 (기본 PING 메시지 사용)
+     */
+    public HealthChecker createHealthChecker() {
+        HealthCheckConfig hcConfig = config.getHealthCheckConfig();
+        return new HealthChecker(
+                config.getClientId() != null ? config.getClientId() : "mci-client",
+                this,
+                hcConfig != null ? hcConfig : HealthCheckConfig.defaultConfig()
+        );
+    }
+
+    /**
+     * 헬스 체커 생성 (커스텀 하트비트 메시지)
+     */
+    public HealthChecker createHealthChecker(Supplier<Message> heartbeatMessageSupplier) {
+        HealthCheckConfig hcConfig = config.getHealthCheckConfig();
+        return new HealthChecker(
+                config.getClientId() != null ? config.getClientId() : "mci-client",
+                this,
+                hcConfig != null ? hcConfig : HealthCheckConfig.defaultConfig(),
+                heartbeatMessageSupplier
+        );
     }
 
     // 하위 클래스에서 구현할 메서드들

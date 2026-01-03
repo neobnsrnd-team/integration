@@ -3,6 +3,7 @@ package springware.mci.client.config;
 import lombok.Builder;
 import lombok.Getter;
 import springware.mci.client.circuitbreaker.CircuitBreakerConfig;
+import springware.mci.client.healthcheck.HealthCheckConfig;
 import springware.mci.common.core.TransportType;
 import springware.mci.common.logging.LogLevel;
 import springware.mci.common.protocol.ProtocolConfig;
@@ -160,6 +161,12 @@ public class ClientConfig {
      */
     @Builder.Default
     private final CircuitBreakerConfig circuitBreakerConfig = CircuitBreakerConfig.defaultConfig();
+
+    /**
+     * 헬스 체크 설정
+     */
+    @Builder.Default
+    private final HealthCheckConfig healthCheckConfig = HealthCheckConfig.disabled();
 
     /**
      * 기본 TCP 클라이언트 설정
