@@ -74,6 +74,30 @@ public class ClientConfig {
     private final int reconnectDelay = 1000;
 
     /**
+     * 초기 연결시 재시도 사용 여부
+     */
+    @Builder.Default
+    private final boolean retryEnabled = true;
+
+    /**
+     * 초기 연결 재시도 횟수
+     */
+    @Builder.Default
+    private final int retryAttempts = 3;
+
+    /**
+     * 초기 연결 재시도 대기 시간 (밀리초)
+     */
+    @Builder.Default
+    private final int retryDelay = 1000;
+
+    /**
+     * 재시도 대기 시간 증가 배율 (exponential backoff)
+     */
+    @Builder.Default
+    private final double retryBackoffMultiplier = 1.5;
+
+    /**
      * 연결 풀 크기 (TCP용)
      */
     @Builder.Default

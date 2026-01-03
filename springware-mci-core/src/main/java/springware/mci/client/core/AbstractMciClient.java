@@ -69,6 +69,17 @@ public abstract class AbstractMciClient implements MciClient {
             throw new ConnectionException("Cannot connect: current state is " + state.get());
         }
 
+        if (config.isRetryEnabled()) {
+            connectWithRetry();
+        } else {
+            connectOnce();
+        }
+    }
+
+    /**
+     * 재시도 없이 한 번만 연결 시도
+     */
+    private void connectOnce() {
         try {
             doConnect();
             state.set(ConnectionState.CONNECTED);
@@ -77,6 +88,57 @@ public abstract class AbstractMciClient implements MciClient {
             state.set(ConnectionState.FAILED);
             throw new ConnectionException("Failed to connect to " + config.getHost() + ":" + config.getPort(), e);
         }
+    }
+
+    /**
+     * 재시도 로직으로 연결
+     */
+    private void connectWithRetry() {
+        int maxAttempts = config.getRetryAttempts();
+        long delay = config.getRetryDelay();
+        Exception lastException = null;
+
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                log.debug("Connection attempt {}/{} to {}:{}",
+                        attempt, maxAttempts, config.getHost(), config.getPort());
+
+                doConnect();
+                state.set(ConnectionState.CONNECTED);
+
+                if (attempt > 1) {
+                    log.info("Connected to {}:{} after {} attempts",
+                            config.getHost(), config.getPort(), attempt);
+                } else {
+                    log.info("Connected to {}:{}", config.getHost(), config.getPort());
+                }
+                return;
+
+            } catch (Exception e) {
+                lastException = e;
+                log.warn("Connection attempt {}/{} failed: {}",
+                        attempt, maxAttempts, e.getMessage());
+
+                if (attempt < maxAttempts) {
+                    try {
+                        log.debug("Waiting {}ms before next retry...", delay);
+                        Thread.sleep(delay);
+                        // Exponential backoff
+                        delay = (long) (delay * config.getRetryBackoffMultiplier());
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        state.set(ConnectionState.FAILED);
+                        throw new ConnectionException("Connection retry interrupted", ie);
+                    }
+                }
+            }
+        }
+
+        state.set(ConnectionState.FAILED);
+        throw new ConnectionException(
+                String.format("Failed to connect to %s:%d after %d attempts",
+                        config.getHost(), config.getPort(), maxAttempts),
+                lastException);
     }
 
     @Override
