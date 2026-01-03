@@ -1,34 +1,32 @@
 package demo.mci.tcp;
 
+import demo.mci.biz.BalanceInquiryBiz;
+import demo.mci.biz.EchoBiz;
+import demo.mci.biz.HeartbeatBiz;
+import demo.mci.biz.TransferBiz;
 import demo.mci.common.DemoConstants;
 import demo.mci.common.DemoLayoutRegistry;
-import demo.mci.common.DemoMessageCodes;
 import lombok.extern.slf4j.Slf4j;
 import springware.mci.common.core.Message;
 import springware.mci.common.core.MessageType;
 import springware.mci.common.layout.LayoutManager;
 import springware.mci.common.protocol.LengthFieldType;
 import springware.mci.common.protocol.ProtocolConfig;
+import springware.mci.server.biz.Biz;
+import springware.mci.server.biz.BizRegistry;
 import springware.mci.server.config.ServerConfig;
 import springware.mci.server.core.MessageContext;
-import springware.mci.server.core.MessageHandler;
 import springware.mci.server.tcp.TcpServer;
-
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * TCP 데모 서버
+ * Biz 패턴을 사용하여 메시지 코드별 비즈니스 로직 처리
  */
 @Slf4j
 public class TcpDemoServer {
 
     private final TcpServer server;
-    private final AtomicLong sequenceNo = new AtomicLong(0);
-
-    // 가상 계좌 데이터
-    private final Map<String, Long> accountBalances = new HashMap<>();
+    private final BizRegistry bizRegistry;
 
     public TcpDemoServer(int port) {
         // 레이아웃 등록
@@ -53,177 +51,61 @@ public class TcpDemoServer {
 
         server = new TcpServer(config, layoutManager, new springware.mci.common.logging.DefaultMessageLogger());
 
-        // 핸들러 등록
-        registerHandlers();
+        // Biz 레지스트리 초기화
+        bizRegistry = new BizRegistry();
+        registerBizComponents();
 
-        // 테스트 데이터 초기화
-        initTestData();
+        // 핸들러 등록 (BizRegistry 기반)
+        registerHandlers();
     }
 
     /**
-     * 핸들러 등록
+     * Biz 컴포넌트 등록
+     */
+    private void registerBizComponents() {
+        bizRegistry.register(new BalanceInquiryBiz());
+        bizRegistry.register(new TransferBiz());
+        bizRegistry.register(new EchoBiz());
+        bizRegistry.register(new HeartbeatBiz());
+
+        // 기본 Biz (등록되지 않은 메시지 코드 처리)
+        bizRegistry.setDefaultBiz(new DefaultBiz());
+
+        log.info("Registered {} Biz components", bizRegistry.size());
+    }
+
+    /**
+     * 메시지 핸들러 등록
+     * BizRegistry를 통해 비즈니스 로직 실행
      */
     private void registerHandlers() {
-        // 잔액조회 핸들러
-        server.registerHandler(DemoMessageCodes.BALANCE_INQUIRY_REQ, this::handleBalanceInquiry);
-
-        // 이체 핸들러
-        server.registerHandler(DemoMessageCodes.TRANSFER_REQ, this::handleTransfer);
-
-        // 에코 핸들러
-        server.registerHandler(DemoMessageCodes.ECHO_REQ, this::handleEcho);
-
-        // 하트비트 핸들러
-        server.registerHandler(DemoMessageCodes.HEARTBEAT_REQ, this::handleHeartbeat);
-
-        // 기본 핸들러
+        // 공통 핸들러 - BizRegistry에서 Biz를 찾아 실행
         server.setDefaultHandler((request, context) -> {
-            log.warn("Unknown message code: {}", request.getMessageCode());
-            Message response = request.toResponse();
-            response.setField("msgCode", request.getMessageCode().substring(0, 3) + "2");
-            response.setField("rspCode", DemoConstants.RSP_SYSTEM_ERROR);
-            return response;
+            String messageCode = request.getMessageCode();
+            Biz biz = bizRegistry.getBiz(messageCode);
+
+            if (biz != null) {
+                log.debug("Executing Biz for message code: {}", messageCode);
+                return biz.execute(request, context);
+            } else {
+                log.warn("No Biz found for message code: {}", messageCode);
+                return createErrorResponse(request);
+            }
         });
     }
 
     /**
-     * 테스트 데이터 초기화
+     * 에러 응답 생성
      */
-    private void initTestData() {
-        accountBalances.put("1234567890123456789", 1000000L);
-        accountBalances.put("9876543210987654321", 500000L);
-        accountBalances.put("1111222233334444555", 2500000L);
-    }
-
-    /**
-     * 잔액조회 처리
-     */
-    private Message handleBalanceInquiry(Message request, MessageContext context) {
-        String accountNo = request.getString("accountNo");
-        log.info("Balance inquiry for account: {}", maskAccount(accountNo));
-
+    private Message createErrorResponse(Message request) {
         Message response = Message.builder()
-                .messageCode(DemoMessageCodes.BALANCE_INQUIRY_RES)
+                .messageCode(request.getMessageCode())
                 .messageType(MessageType.RESPONSE)
                 .build();
 
-        // 요청 헤더 복사
-        copyHeader(request, response);
-        response.setField("msgCode", DemoMessageCodes.BALANCE_INQUIRY_RES);
-        response.setField("accountNo", accountNo);
-
-        Long balance = accountBalances.get(accountNo.trim());
-        if (balance != null) {
-            response.setField("rspCode", DemoConstants.RSP_SUCCESS);
-            response.setField("balance", balance);
-        } else {
-            response.setField("rspCode", DemoConstants.RSP_INVALID_ACCOUNT);
-            response.setField("balance", 0L);
-        }
-
+        response.setField("msgCode", request.getMessageCode().substring(0, 3) + "2");
+        response.setField("rspCode", DemoConstants.RSP_SYSTEM_ERROR);
         return response;
-    }
-
-    /**
-     * 이체 처리
-     */
-    private Message handleTransfer(Message request, MessageContext context) {
-        String fromAccount = request.getString("fromAccount");
-        String toAccount = request.getString("toAccount");
-        Long amount = request.getLong("amount");
-
-        log.info("Transfer: {} -> {} ({})", maskAccount(fromAccount), maskAccount(toAccount), amount);
-
-        Message response = Message.builder()
-                .messageCode(DemoMessageCodes.TRANSFER_RES)
-                .messageType(MessageType.RESPONSE)
-                .build();
-
-        copyHeader(request, response);
-        response.setField("msgCode", DemoMessageCodes.TRANSFER_RES);
-        response.setField("fromAccount", fromAccount);
-        response.setField("toAccount", toAccount);
-        response.setField("amount", amount);
-
-        Long fromBalance = accountBalances.get(fromAccount.trim());
-        Long toBalance = accountBalances.get(toAccount.trim());
-
-        if (fromBalance == null) {
-            response.setField("rspCode", DemoConstants.RSP_INVALID_ACCOUNT);
-            response.setField("fromBalance", 0L);
-        } else if (fromBalance < amount) {
-            response.setField("rspCode", DemoConstants.RSP_INSUFFICIENT_BALANCE);
-            response.setField("fromBalance", fromBalance);
-        } else {
-            // 이체 수행
-            accountBalances.put(fromAccount.trim(), fromBalance - amount);
-            if (toBalance != null) {
-                accountBalances.put(toAccount.trim(), toBalance + amount);
-            }
-
-            response.setField("rspCode", DemoConstants.RSP_SUCCESS);
-            response.setField("fromBalance", fromBalance - amount);
-        }
-
-        return response;
-    }
-
-    /**
-     * 에코 처리
-     */
-    private Message handleEcho(Message request, MessageContext context) {
-        log.debug("Echo request received");
-
-        Message response = Message.builder()
-                .messageCode(DemoMessageCodes.ECHO_RES)
-                .messageType(MessageType.RESPONSE)
-                .build();
-
-        copyHeader(request, response);
-        response.setField("msgCode", DemoMessageCodes.ECHO_RES);
-        response.setField("rspCode", DemoConstants.RSP_SUCCESS);
-        response.setField("echoData", request.getString("echoData"));
-
-        return response;
-    }
-
-    /**
-     * 하트비트 처리
-     */
-    private Message handleHeartbeat(Message request, MessageContext context) {
-        log.debug("Heartbeat received from {}", context.getRemoteIp());
-
-        Message response = Message.builder()
-                .messageCode(DemoMessageCodes.HEARTBEAT_RES)
-                .messageType(MessageType.RESPONSE)
-                .build();
-
-        copyHeader(request, response);
-        response.setField("msgCode", DemoMessageCodes.HEARTBEAT_RES);
-        response.setField("rspCode", DemoConstants.RSP_SUCCESS);
-
-        return response;
-    }
-
-    /**
-     * 헤더 복사
-     */
-    private void copyHeader(Message from, Message to) {
-        to.setField("orgCode", from.getString("orgCode"));
-        to.setField("txDate", from.getString("txDate"));
-        to.setField("txTime", from.getString("txTime"));
-        to.setField("seqNo", from.getString("seqNo"));
-        to.setField("filler", "");
-    }
-
-    /**
-     * 계좌번호 마스킹
-     */
-    private String maskAccount(String accountNo) {
-        if (accountNo == null || accountNo.length() < 8) {
-            return "****";
-        }
-        return accountNo.substring(0, 4) + "****" + accountNo.substring(accountNo.length() - 4);
     }
 
     /**
@@ -240,6 +122,37 @@ public class TcpDemoServer {
     public void stop() {
         server.stop();
         log.info("Demo TCP Server stopped");
+    }
+
+    /**
+     * BizRegistry 반환 (테스트/확장용)
+     */
+    public BizRegistry getBizRegistry() {
+        return bizRegistry;
+    }
+
+    /**
+     * 기본 Biz 구현 (등록되지 않은 메시지 코드 처리)
+     */
+    private static class DefaultBiz implements Biz {
+        @Override
+        public Message execute(Message request, MessageContext context) {
+            log.warn("Unknown message code: {}", request.getMessageCode());
+
+            Message response = Message.builder()
+                    .messageCode(request.getMessageCode())
+                    .messageType(MessageType.RESPONSE)
+                    .build();
+
+            response.setField("msgCode", request.getMessageCode().substring(0, 3) + "2");
+            response.setField("rspCode", DemoConstants.RSP_SYSTEM_ERROR);
+            return response;
+        }
+
+        @Override
+        public String getMessageCode() {
+            return "*"; // 와일드카드 - 기본 처리용
+        }
     }
 
     /**
