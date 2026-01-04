@@ -1,0 +1,82 @@
+# 거래내역조회 응답 레이아웃 (가변길이 - 반복부 포함)
+# 헤더(50) + 계좌번호(20) + 건수(3) + 반복부(N * 49바이트)
+id: TXH2
+description: 거래내역조회 응답
+
+fields:
+  # 공통 헤더 (50바이트)
+  - name: msgCode
+    length: 4
+    type: S
+
+  - name: orgCode
+    length: 3
+    type: S
+
+  - name: txDate
+    length: 8
+    type: D
+
+  - name: txTime
+    length: 6
+    type: T
+
+  - name: seqNo
+    length: 10
+    type: NS
+
+  - name: rspCode
+    length: 4
+    type: S
+
+  - name: filler
+    length: 15
+    type: S
+
+  # 본문 고정부 (23바이트)
+  - name: accountNo
+    length: 20
+    type: S
+    masked: true
+    description: 계좌번호
+
+  - name: recordCount
+    length: 3
+    type: N
+    description: 거래건수
+
+  # 반복부 (N * 49바이트)
+  - name: records
+    length: 0
+    repeatCountField: recordCount
+    description: 거래내역 목록
+    children:
+      - name: txDate
+        length: 8
+        type: D
+        description: 거래일자
+
+      - name: txTime
+        length: 6
+        type: T
+        description: 거래시간
+
+      - name: txType
+        length: 1
+        type: S
+        description: 거래구분 (1:입금, 2:출금)
+
+      - name: amount
+        length: 15
+        type: N
+        description: 거래금액
+
+      - name: balance
+        length: 15
+        type: N
+        description: 거래후잔액
+
+      - name: memo
+        length: 4
+        type: S
+        description: 적요코드

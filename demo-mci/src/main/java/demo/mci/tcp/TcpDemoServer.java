@@ -1,8 +1,10 @@
 package demo.mci.tcp;
 
+import demo.mci.biz.AccountInquiryBiz;
 import demo.mci.biz.BalanceInquiryBiz;
 import demo.mci.biz.EchoBiz;
 import demo.mci.biz.HeartbeatBiz;
+import demo.mci.biz.TransactionHistoryBiz;
 import demo.mci.biz.TransferBiz;
 import demo.mci.common.DemoConstants;
 import demo.mci.common.DemoLayoutRegistry;
@@ -56,7 +58,7 @@ public class TcpDemoServer {
         registerBizComponents();
 
         // 핸들러 등록 (BizRegistry 기반)
-        registerHandlers();
+            registerHandlers();
     }
 
     /**
@@ -65,6 +67,8 @@ public class TcpDemoServer {
     private void registerBizComponents() {
         bizRegistry.register(new BalanceInquiryBiz());
         bizRegistry.register(new TransferBiz());
+        bizRegistry.register(new TransactionHistoryBiz());
+        bizRegistry.register(new AccountInquiryBiz());
         bizRegistry.register(new EchoBiz());
         bizRegistry.register(new HeartbeatBiz());
 

@@ -1,0 +1,42 @@
+# 공통 헤더 레이아웃 (50바이트)
+id: HEADER
+description: 공통 헤더
+
+fields:
+  - name: msgCode
+    length: 4
+    type: S
+    description: 전문코드
+
+  - name: orgCode
+    length: 3
+    type: S
+    description: 기관코드
+
+  - name: txDate
+    length: 8
+    type: D
+    expression: "${DATE:yyyyMMdd}"
+    description: 거래일자
+
+  - name: txTime
+    length: 6
+    type: T
+    expression: "${TIME:HHmmss}"
+    description: 거래시간
+
+  - name: seqNo
+    length: 10
+    type: NS
+    description: 전문일련번호
+
+  - name: rspCode
+    length: 4
+    type: S
+    defaultValue: "0000"
+    description: 응답코드
+
+  - name: filler
+    length: 15
+    type: S
+    description: 필러

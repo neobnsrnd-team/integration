@@ -4,6 +4,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.ToString;
 
+import java.util.List;
+
 /**
  * 필드 정의
  */
@@ -19,6 +21,7 @@ public class FieldDefinition {
 
     /**
      * 필드 길이 (바이트)
+     * 반복부인 경우 0 (동적 계산)
      */
     private final int length;
 
@@ -65,6 +68,17 @@ public class FieldDefinition {
      * 날짜/시간 표현식 (예: ${DATE:yyyyMMdd:-1d})
      */
     private final String expression;
+
+    /**
+     * 반복 횟수 참조 필드명 (반복부인 경우)
+     * 예: "recordCount" - recordCount 필드의 값만큼 반복
+     */
+    private final String repeatCountField;
+
+    /**
+     * 반복부 자식 필드들
+     */
+    private final List<FieldDefinition> children;
 
     /**
      * 필드 시작 위치 (바이트 오프셋, 0부터 시작)
@@ -120,6 +134,36 @@ public class FieldDefinition {
                 .length(length)
                 .type(type)
                 .masked(true)
+                .build();
+    }
+
+    /**
+     * 반복부 여부 확인
+     */
+    public boolean isRepeating() {
+        return repeatCountField != null && children != null && !children.isEmpty();
+    }
+
+    /**
+     * 반복부 1건의 길이 (자식 필드 합계)
+     */
+    public int getRepeatingRecordLength() {
+        if (!isRepeating()) {
+            return 0;
+        }
+        return children.stream().mapToInt(FieldDefinition::getLength).sum();
+    }
+
+    /**
+     * 반복부 간편 생성
+     */
+    public static FieldDefinition repeating(String name, String repeatCountField, List<FieldDefinition> children) {
+        return FieldDefinition.builder()
+                .name(name)
+                .length(0) // 동적 계산
+                .type(FieldType.STRING)
+                .repeatCountField(repeatCountField)
+                .children(children)
                 .build();
     }
 }

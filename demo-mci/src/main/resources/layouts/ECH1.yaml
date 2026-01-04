@@ -1,0 +1,42 @@
+# 에코 요청 레이아웃 (150바이트)
+id: ECH1
+description: 에코 요청
+
+fields:
+  # 공통 헤더 (50바이트)
+  - name: msgCode
+    length: 4
+    type: S
+
+  - name: orgCode
+    length: 3
+    type: S
+
+  - name: txDate
+    length: 8
+    type: D
+    expression: "${DATE:yyyyMMdd}"
+
+  - name: txTime
+    length: 6
+    type: T
+    expression: "${TIME:HHmmss}"
+
+  - name: seqNo
+    length: 10
+    type: NS
+
+  - name: rspCode
+    length: 4
+    type: S
+    defaultValue: "0000"
+
+  - name: filler
+    length: 15
+    type: S
+
+  # 본문 (100바이트)
+  - name: echoData
+    length: 100
+    type: S
+    description: 에코데이터

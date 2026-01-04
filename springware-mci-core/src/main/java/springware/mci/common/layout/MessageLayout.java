@@ -46,6 +46,11 @@ public class MessageLayout {
      */
     private final int totalLength;
 
+    /**
+     * 반복부 포함 여부
+     */
+    private final boolean hasRepeatingFields;
+
     private MessageLayout(String layoutId, String description, List<FieldDefinition> fields) {
         this.layoutId = layoutId;
         this.description = description;
@@ -54,12 +59,19 @@ public class MessageLayout {
 
         // 오프셋 계산 및 맵 구성
         int offset = 0;
+        boolean hasRepeating = false;
         for (FieldDefinition field : this.fields) {
             field.setOffset(offset);
             fieldMap.put(field.getName(), field);
-            offset += field.getLength();
+            if (field.isRepeating()) {
+                hasRepeating = true;
+                // 반복부는 길이가 0으로 설정되어 있으므로 동적 계산 필요
+            } else {
+                offset += field.getLength();
+            }
         }
         this.totalLength = offset;
+        this.hasRepeatingFields = hasRepeating;
     }
 
     /**
@@ -87,8 +99,17 @@ public class MessageLayout {
      * 메시지 인코딩
      */
     public byte[] encode(Message message, Charset charset) {
+        if (!hasRepeatingFields) {
+            return encodeSimple(message, charset);
+        }
+        return encodeWithRepeating(message, charset);
+    }
+
+    /**
+     * 단순 인코딩 (반복부 없는 경우)
+     */
+    private byte[] encodeSimple(Message message, Charset charset) {
         byte[] result = new byte[totalLength];
-        // 기본값으로 초기화 (공백)
         java.util.Arrays.fill(result, (byte) ' ');
 
         for (FieldDefinition field : fields) {
@@ -96,9 +117,7 @@ public class MessageLayout {
             String strValue = formatFieldValue(field, value);
             byte[] fieldBytes = strValue.getBytes(charset);
 
-            // 바이트 길이 확인 및 조정
             if (fieldBytes.length > field.getLength()) {
-                // 바이트 단위로 자르기
                 fieldBytes = StringUtils.truncateByBytes(strValue, field.getLength(), charset).getBytes(charset);
             }
 
@@ -109,9 +128,90 @@ public class MessageLayout {
     }
 
     /**
+     * 반복부 포함 인코딩
+     */
+    @SuppressWarnings("unchecked")
+    private byte[] encodeWithRepeating(Message message, Charset charset) {
+        // 먼저 전체 길이 계산
+        int dynamicLength = calculateDynamicLength(message);
+        byte[] result = new byte[dynamicLength];
+        java.util.Arrays.fill(result, (byte) ' ');
+
+        int currentOffset = 0;
+        for (FieldDefinition field : fields) {
+            if (field.isRepeating()) {
+                // 반복 횟수 조회
+                Object countValue = message.getField(field.getRepeatCountField());
+                int repeatCount = countValue instanceof Number ? ((Number) countValue).intValue() : 0;
+
+                // 반복부 데이터 조회
+                Object repeatingData = message.getField(field.getName());
+                List<Map<String, Object>> records = (List<Map<String, Object>>) repeatingData;
+
+                // 각 레코드 인코딩
+                for (int i = 0; i < repeatCount && records != null && i < records.size(); i++) {
+                    Map<String, Object> record = records.get(i);
+                    for (FieldDefinition childField : field.getChildren()) {
+                        Object value = record.get(childField.getName());
+                        String strValue = formatFieldValue(childField, value);
+                        byte[] fieldBytes = strValue.getBytes(charset);
+
+                        if (fieldBytes.length > childField.getLength()) {
+                            fieldBytes = StringUtils.truncateByBytes(strValue, childField.getLength(), charset).getBytes(charset);
+                        }
+
+                        System.arraycopy(fieldBytes, 0, result, currentOffset, fieldBytes.length);
+                        currentOffset += childField.getLength();
+                    }
+                }
+            } else {
+                Object value = message.getField(field.getName());
+                String strValue = formatFieldValue(field, value);
+                byte[] fieldBytes = strValue.getBytes(charset);
+
+                if (fieldBytes.length > field.getLength()) {
+                    fieldBytes = StringUtils.truncateByBytes(strValue, field.getLength(), charset).getBytes(charset);
+                }
+
+                System.arraycopy(fieldBytes, 0, result, currentOffset, fieldBytes.length);
+                currentOffset += field.getLength();
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * 동적 길이 계산 (반복부 포함)
+     */
+    private int calculateDynamicLength(Message message) {
+        int length = 0;
+        for (FieldDefinition field : fields) {
+            if (field.isRepeating()) {
+                Object countValue = message.getField(field.getRepeatCountField());
+                int repeatCount = countValue instanceof Number ? ((Number) countValue).intValue() : 0;
+                length += repeatCount * field.getRepeatingRecordLength();
+            } else {
+                length += field.getLength();
+            }
+        }
+        return length;
+    }
+
+    /**
      * 메시지 디코딩
      */
     public Message decode(byte[] data, Charset charset) {
+        if (!hasRepeatingFields) {
+            return decodeSimple(data, charset);
+        }
+        return decodeWithRepeating(data, charset);
+    }
+
+    /**
+     * 단순 디코딩 (반복부 없는 경우)
+     */
+    private Message decodeSimple(byte[] data, Charset charset) {
         if (data.length < totalLength) {
             throw new LayoutException(
                     String.format("Data length %d is less than layout length %d", data.length, totalLength));
@@ -127,6 +227,64 @@ public class MessageLayout {
             String rawValue = new String(data, field.getOffset(), field.getLength(), charset);
             Object parsedValue = parseFieldValue(field, rawValue);
             message.setField(field.getName(), parsedValue);
+        }
+
+        message.setRawData(data);
+        return message;
+    }
+
+    /**
+     * 반복부 포함 디코딩
+     */
+    private Message decodeWithRepeating(byte[] data, Charset charset) {
+        Message.MessageBuilder builder = Message.builder()
+                .messageCode(layoutId)
+                .messageType(MessageType.REQUEST);
+
+        Message message = builder.build();
+
+        int currentOffset = 0;
+        for (FieldDefinition field : fields) {
+            if (field.isRepeating()) {
+                // 반복 횟수 조회 (이미 파싱된 필드에서)
+                Object countValue = message.getField(field.getRepeatCountField());
+                int repeatCount = countValue instanceof Number ? ((Number) countValue).intValue() : 0;
+
+                // 반복부 데이터 디코딩
+                List<Map<String, Object>> records = new ArrayList<>();
+                int recordLength = field.getRepeatingRecordLength();
+
+                for (int i = 0; i < repeatCount; i++) {
+                    if (currentOffset + recordLength > data.length) {
+                        log.warn("Insufficient data for repeating record {}/{}", i + 1, repeatCount);
+                        break;
+                    }
+
+                    Map<String, Object> record = new LinkedHashMap<>();
+                    int recordOffset = currentOffset;
+                    for (FieldDefinition childField : field.getChildren()) {
+                        String rawValue = new String(data, recordOffset, childField.getLength(), charset);
+                        Object parsedValue = parseFieldValue(childField, rawValue);
+                        record.put(childField.getName(), parsedValue);
+                        recordOffset += childField.getLength();
+                    }
+                    records.add(record);
+                    currentOffset += recordLength;
+                }
+
+                message.setField(field.getName(), records);
+            } else {
+                if (currentOffset + field.getLength() > data.length) {
+                    throw new LayoutException(
+                            String.format("Insufficient data at offset %d for field %s (length %d)",
+                                    currentOffset, field.getName(), field.getLength()));
+                }
+
+                String rawValue = new String(data, currentOffset, field.getLength(), charset);
+                Object parsedValue = parseFieldValue(field, rawValue);
+                message.setField(field.getName(), parsedValue);
+                currentOffset += field.getLength();
+            }
         }
 
         message.setRawData(data);

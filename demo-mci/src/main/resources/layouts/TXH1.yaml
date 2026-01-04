@@ -1,0 +1,53 @@
+# 거래내역조회 요청 레이아웃 (86바이트)
+id: TXH1
+description: 거래내역조회 요청
+
+fields:
+  # 공통 헤더 (50바이트)
+  - name: msgCode
+    length: 4
+    type: S
+
+  - name: orgCode
+    length: 3
+    type: S
+
+  - name: txDate
+    length: 8
+    type: D
+    expression: "${DATE:yyyyMMdd}"
+
+  - name: txTime
+    length: 6
+    type: T
+    expression: "${TIME:HHmmss}"
+
+  - name: seqNo
+    length: 10
+    type: NS
+
+  - name: rspCode
+    length: 4
+    type: S
+    defaultValue: "0000"
+
+  - name: filler
+    length: 15
+    type: S
+
+  # 본문 (36바이트)
+  - name: accountNo
+    length: 20
+    type: S
+    masked: true
+    description: 계좌번호
+
+  - name: fromDate
+    length: 8
+    type: D
+    description: 조회시작일
+
+  - name: toDate
+    length: 8
+    type: D
+    description: 조회종료일

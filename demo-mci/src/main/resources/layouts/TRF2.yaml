@@ -1,0 +1,56 @@
+# 이체 응답 레이아웃 (120바이트)
+id: TRF2
+description: 이체 응답
+
+fields:
+  # 공통 헤더 (50바이트)
+  - name: msgCode
+    length: 4
+    type: S
+
+  - name: orgCode
+    length: 3
+    type: S
+
+  - name: txDate
+    length: 8
+    type: D
+
+  - name: txTime
+    length: 6
+    type: T
+
+  - name: seqNo
+    length: 10
+    type: NS
+
+  - name: rspCode
+    length: 4
+    type: S
+
+  - name: filler
+    length: 15
+    type: S
+
+  # 본문 (70바이트)
+  - name: fromAccount
+    length: 20
+    type: S
+    masked: true
+    description: 출금계좌
+
+  - name: toAccount
+    length: 20
+    type: S
+    masked: true
+    description: 입금계좌
+
+  - name: amount
+    length: 15
+    type: N
+    description: 이체금액
+
+  - name: fromBalance
+    length: 15
+    type: N
+    description: 출금후잔액

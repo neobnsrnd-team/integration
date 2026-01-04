@@ -1,0 +1,59 @@
+# 이체 요청 레이아웃 (135바이트)
+id: TRF1
+description: 이체 요청
+
+fields:
+  # 공통 헤더 (50바이트)
+  - name: msgCode
+    length: 4
+    type: S
+
+  - name: orgCode
+    length: 3
+    type: S
+
+  - name: txDate
+    length: 8
+    type: D
+    expression: "${DATE:yyyyMMdd}"
+
+  - name: txTime
+    length: 6
+    type: T
+    expression: "${TIME:HHmmss}"
+
+  - name: seqNo
+    length: 10
+    type: NS
+
+  - name: rspCode
+    length: 4
+    type: S
+    defaultValue: "0000"
+
+  - name: filler
+    length: 15
+    type: S
+
+  # 본문 (85바이트)
+  - name: fromAccount
+    length: 20
+    type: S
+    masked: true
+    description: 출금계좌
+
+  - name: toAccount
+    length: 20
+    type: S
+    masked: true
+    description: 입금계좌
+
+  - name: amount
+    length: 15
+    type: N
+    description: 이체금액
+
+  - name: memo
+    length: 30
+    type: S
+    description: 적요

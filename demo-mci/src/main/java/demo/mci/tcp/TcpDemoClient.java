@@ -12,6 +12,8 @@ import springware.mci.common.layout.LayoutManager;
 import springware.mci.common.protocol.LengthFieldType;
 import springware.mci.common.protocol.ProtocolConfig;
 
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -122,6 +124,119 @@ public class TcpDemoClient {
         }
 
         return response;
+    }
+
+    /**
+     * 거래내역조회
+     */
+    @SuppressWarnings("unchecked")
+    public Message transactionHistory(String accountNo, String fromDate, String toDate) {
+        Message request = Message.builder()
+                .messageCode(DemoMessageCodes.TX_HISTORY_REQ)
+                .messageType(MessageType.REQUEST)
+                .build();
+
+        request.setField("msgCode", DemoMessageCodes.TX_HISTORY_REQ);
+        request.setField("orgCode", DemoConstants.ORG_CODE_BANK);
+        request.setField("seqNo", String.format("%010d", sequenceNo.incrementAndGet()));
+        request.setField("accountNo", accountNo);
+        request.setField("fromDate", fromDate);
+        request.setField("toDate", toDate);
+
+        log.info("Sending transaction history inquiry: {} ({} ~ {})",
+                maskAccount(accountNo), fromDate, toDate);
+        Message response = client.send(request);
+
+        String rspCode = response.getString("rspCode");
+        if (DemoConstants.RSP_SUCCESS.equals(rspCode)) {
+            Object countObj = response.getField("recordCount");
+            int count = countObj instanceof Number ? ((Number) countObj).intValue() : 0;
+            log.info("Found {} transactions", count);
+
+            // 거래내역 출력
+            List<Map<String, Object>> records =
+                    (List<Map<String, Object>>) response.getField("records");
+            if (records != null) {
+                for (int i = 0; i < records.size(); i++) {
+                    Map<String, Object> record = records.get(i);
+                    String txType = "1".equals(record.get("txType")) ? "입금" : "출금";
+                    log.info("  [{}] {} {} {} {:>15}원 (잔액: {})",
+                            i + 1,
+                            record.get("txDate"),
+                            record.get("txTime"),
+                            txType,
+                            record.get("amount"),
+                            record.get("balance"));
+                }
+            }
+        } else {
+            log.warn("Transaction history inquiry failed: {}", rspCode);
+        }
+
+        return response;
+    }
+
+    /**
+     * 계좌정보조회
+     */
+    public Message accountInquiry(String accountNo) {
+        Message request = Message.builder()
+                .messageCode(DemoMessageCodes.ACCOUNT_INFO_REQ)
+                .messageType(MessageType.REQUEST)
+                .build();
+
+        request.setField("msgCode", DemoMessageCodes.ACCOUNT_INFO_REQ);
+        request.setField("orgCode", DemoConstants.ORG_CODE_BANK);
+        request.setField("seqNo", String.format("%010d", sequenceNo.incrementAndGet()));
+        request.setField("accountNo", accountNo);
+
+        log.info("Sending account inquiry for account: {}", maskAccount(accountNo));
+        Message response = client.send(request);
+
+        String rspCode = response.getString("rspCode");
+        if (DemoConstants.RSP_SUCCESS.equals(rspCode)) {
+            log.info("Account: {} ({})",
+                    response.getString("accountName"),
+                    getAccountTypeName(response.getString("accountType")));
+            log.info("  Open Date: {}, Status: {}",
+                    response.getString("openDate"),
+                    getStatusName(response.getString("status")));
+            log.info("  Balance: {}, Available: {}",
+                    response.getLong("balance"),
+                    response.getLong("availableBalance"));
+            log.info("  Interest Rate: {}%",
+                    formatInterestRate(response.getField("interestRate")));
+        } else {
+            log.warn("Account inquiry failed: {}", rspCode);
+        }
+
+        return response;
+    }
+
+    private String getAccountTypeName(String accountType) {
+        if (accountType == null) return "Unknown";
+        switch (accountType) {
+            case "01": return "보통예금";
+            case "02": return "정기예금";
+            case "03": return "적금";
+            default: return "기타";
+        }
+    }
+
+    private String getStatusName(String status) {
+        if (status == null) return "Unknown";
+        switch (status) {
+            case "1": return "정상";
+            case "2": return "정지";
+            case "9": return "해지";
+            default: return "Unknown";
+        }
+    }
+
+    private String formatInterestRate(Object rate) {
+        if (rate == null) return "0.00";
+        int rateValue = rate instanceof Number ? ((Number) rate).intValue() : 0;
+        return String.format("%.2f", rateValue / 100.0);
     }
 
     /**

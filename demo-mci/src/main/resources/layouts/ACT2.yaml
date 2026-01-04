@@ -1,0 +1,76 @@
+# 계좌정보조회 응답 레이아웃 (145바이트)
+id: ACT2
+description: 계좌정보조회 응답
+
+fields:
+  # 공통 헤더 (50바이트)
+  - name: msgCode
+    length: 4
+    type: S
+
+  - name: orgCode
+    length: 3
+    type: S
+
+  - name: txDate
+    length: 8
+    type: D
+
+  - name: txTime
+    length: 6
+    type: T
+
+  - name: seqNo
+    length: 10
+    type: NS
+
+  - name: rspCode
+    length: 4
+    type: S
+
+  - name: filler
+    length: 15
+    type: S
+
+  # 본문 (95바이트)
+  - name: accountNo
+    length: 20
+    type: S
+    masked: true
+    description: 계좌번호
+
+  - name: accountName
+    length: 30
+    type: S
+    description: 계좌명
+
+  - name: accountType
+    length: 2
+    type: S
+    description: 계좌종류 (01:보통예금, 02:정기예금, 03:적금)
+
+  - name: openDate
+    length: 8
+    type: D
+    description: 개설일자
+
+  - name: status
+    length: 1
+    type: S
+    description: 상태 (1:정상, 2:정지, 9:해지)
+
+  - name: balance
+    length: 15
+    type: N
+    description: 현재잔액
+
+  - name: availableBalance
+    length: 15
+    type: N
+    description: 출금가능금액
+
+  - name: interestRate
+    length: 4
+    type: N
+    decimalPlaces: 2
+    description: 이율

@@ -75,6 +75,13 @@ public class DemoServerApplication {
             log.info("=== Transfer Test ===");
             client.transfer("1234567890123456789", "9876543210987654321", 100000);
 
+            log.info("=== Transaction History Test ===");
+            client.transactionHistory("1234567890123456789", "20240110", "20240115");
+
+            log.info("=== Account Inquiry Test ===");
+            client.accountInquiry("1234567890123456789");
+            client.accountInquiry("1111222233334444555");
+
             log.info("=== Echo Test ===");
             client.echo("Hello, MCI Framework!");
 
@@ -130,12 +137,21 @@ public class DemoServerApplication {
             client.balanceInquiry("1234567890123456789");
             client.balanceInquiry("9876543210987654321");
 
-            // 4. 에코 테스트
-            log.info("\n[4] Echo Test");
+            // 4. 거래내역 조회
+            log.info("\n[4] Transaction History (2024.01.10 ~ 2024.01.15)");
+            client.transactionHistory("1234567890123456789", "20240110", "20240115");
+
+            // 5. 계좌정보 조회
+            log.info("\n[5] Account Inquiry");
+            client.accountInquiry("1234567890123456789");
+            client.accountInquiry("1111222233334444555");
+
+            // 6. 에코 테스트
+            log.info("\n[6] Echo Test");
             client.echo("Hello, MCI Framework!");
 
-            // 5. 하트비트
-            log.info("\n[5] Heartbeat");
+            // 7. 하트비트
+            log.info("\n[7] Heartbeat");
             client.heartbeat();
 
             log.info("\n========================================");

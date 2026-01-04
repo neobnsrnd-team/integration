@@ -82,9 +82,27 @@ public class LayoutConfig {
         private String expression;
 
         /**
+         * 반복 횟수 참조 필드명 (반복부인 경우)
+         */
+        private String repeatCountField;
+
+        /**
+         * 반복부 자식 필드들
+         */
+        private List<FieldConfig> children;
+
+        /**
          * FieldDefinition으로 변환
          */
         public FieldDefinition toFieldDefinition() {
+            List<FieldDefinition> childDefinitions = null;
+            if (children != null && !children.isEmpty()) {
+                childDefinitions = new ArrayList<>();
+                for (FieldConfig child : children) {
+                    childDefinitions.add(child.toFieldDefinition());
+                }
+            }
+
             return FieldDefinition.builder()
                     .name(name)
                     .length(length)
@@ -96,6 +114,8 @@ public class LayoutConfig {
                     .description(description)
                     .decimalPlaces(decimalPlaces)
                     .expression(expression)
+                    .repeatCountField(repeatCountField)
+                    .children(childDefinitions)
                     .build();
         }
     }
