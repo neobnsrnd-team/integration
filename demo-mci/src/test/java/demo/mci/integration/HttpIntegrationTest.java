@@ -1,10 +1,10 @@
 package demo.mci.integration;
 
-import demo.mci.biz.AccountRepository;
+import demo.mci.banking.entity.AccountRepository;
 import demo.mci.common.DemoConstants;
 import demo.mci.common.DemoMessageCodes;
-import demo.mci.http.HttpDemoClient;
-import demo.mci.http.HttpDemoServer;
+import demo.mci.banking.http.BankHttpClient;
+import demo.mci.banking.http.BankHttpServer;
 import org.junit.jupiter.api.*;
 import springware.mci.common.core.Message;
 
@@ -20,8 +20,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class HttpIntegrationTest {
 
-    private static HttpDemoServer server;
-    private static HttpDemoClient client;
+    private static BankHttpServer server;
+    private static BankHttpClient client;
     private static int testPort;
     private static AccountRepository accountRepository;
 
@@ -31,14 +31,14 @@ class HttpIntegrationTest {
         testPort = findAvailablePort();
 
         // 서버 시작
-        server = new HttpDemoServer(testPort);
+        server = new BankHttpServer(testPort);
         server.start();
 
         // 서버 시작 대기
         Thread.sleep(500);
 
         // 클라이언트 연결
-        client = new HttpDemoClient("localhost", testPort);
+        client = new BankHttpClient("localhost", testPort);
         client.connect();
 
         // AccountRepository 참조

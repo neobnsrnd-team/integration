@@ -1,10 +1,10 @@
 package demo.mci.integration;
 
-import demo.mci.biz.AccountRepository;
+import demo.mci.banking.entity.AccountRepository;
 import demo.mci.common.DemoConstants;
 import demo.mci.common.DemoMessageCodes;
-import demo.mci.https.HttpsDemoClient;
-import demo.mci.https.HttpsDemoServer;
+import demo.mci.banking.https.BankHttpsClient;
+import demo.mci.banking.https.BankHttpsServer;
 import org.junit.jupiter.api.*;
 import springware.mci.common.core.Message;
 
@@ -21,8 +21,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class HttpsIntegrationTest {
 
-    private static HttpsDemoServer server;
-    private static HttpsDemoClient client;
+    private static BankHttpsServer server;
+    private static BankHttpsClient client;
     private static int testPort;
     private static AccountRepository accountRepository;
 
@@ -32,14 +32,14 @@ class HttpsIntegrationTest {
         testPort = findAvailablePort();
 
         // HTTPS 서버 시작 (자체 서명 인증서 사용)
-        server = new HttpsDemoServer(testPort);
+        server = new BankHttpsServer(testPort);
         server.start();
 
         // 서버 시작 대기
         Thread.sleep(500);
 
         // HTTPS 클라이언트 연결 (trustAll 모드)
-        client = new HttpsDemoClient("localhost", testPort);
+        client = new BankHttpsClient("localhost", testPort);
         client.connect();
 
         // AccountRepository 참조

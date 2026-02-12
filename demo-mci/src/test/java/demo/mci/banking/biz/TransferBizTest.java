@@ -1,5 +1,6 @@
-package demo.mci.biz;
+package demo.mci.banking.biz;
 
+import demo.mci.banking.entity.AccountRepository;
 import demo.mci.common.DemoConstants;
 import demo.mci.common.DemoMessageCodes;
 import org.junit.jupiter.api.BeforeEach;

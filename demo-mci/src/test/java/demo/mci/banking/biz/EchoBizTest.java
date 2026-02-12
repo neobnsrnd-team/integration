@@ -1,4 +1,4 @@
-package demo.mci.biz;
+package demo.mci.banking.biz;
 
 import demo.mci.common.DemoConstants;
 import demo.mci.common.DemoMessageCodes;

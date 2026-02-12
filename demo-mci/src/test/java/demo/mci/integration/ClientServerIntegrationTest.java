@@ -1,10 +1,10 @@
 package demo.mci.integration;
 
-import demo.mci.biz.AccountRepository;
+import demo.mci.banking.entity.AccountRepository;
 import demo.mci.common.DemoConstants;
 import demo.mci.common.DemoMessageCodes;
-import demo.mci.tcp.TcpDemoClient;
-import demo.mci.tcp.TcpDemoServer;
+import demo.mci.banking.tcp.BankTcpClient;
+import demo.mci.banking.tcp.BankTcpServer;
 import org.junit.jupiter.api.*;
 import springware.mci.common.core.Message;
 
@@ -20,8 +20,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ClientServerIntegrationTest {
 
-    private static TcpDemoServer server;
-    private static TcpDemoClient client;
+    private static BankTcpServer server;
+    private static BankTcpClient client;
     private static int testPort;
     private static AccountRepository accountRepository;
 
@@ -31,14 +31,14 @@ class ClientServerIntegrationTest {
         testPort = findAvailablePort();
 
         // 서버 시작
-        server = new TcpDemoServer(testPort);
+        server = new BankTcpServer(testPort);
         server.start();
 
         // 서버 시작 대기
         Thread.sleep(500);
 
         // 클라이언트 연결
-        client = new TcpDemoClient("localhost", testPort);
+        client = new BankTcpClient("localhost", testPort);
         client.connect();
 
         // AccountRepository 참조

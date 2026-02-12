@@ -1,4 +1,4 @@
-package demo.mci.biz;
+package demo.mci.banking.biz;
 
 import springware.mci.common.core.Message;
 import springware.mci.common.core.MessageType;
