@@ -1,4 +1,4 @@
-package springware.mci.server.http;
+package springware.mci.common.http;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -17,6 +17,8 @@ import java.util.Map;
 /**
  * HTTP JSON 메시지 변환기
  * Message <-> JSON 변환 처리
+ *
+ * 클라이언트와 서버 모두에서 사용
  */
 @Slf4j
 public class HttpMessageConverter {
@@ -52,6 +54,18 @@ public class HttpMessageConverter {
      * @return Message 객체
      */
     public Message fromJson(String json, String defaultMessageCode) {
+        return fromJson(json, defaultMessageCode, MessageType.REQUEST);
+    }
+
+    /**
+     * JSON 문자열을 Message로 변환 (메시지 코드, 타입 지정)
+     *
+     * @param json JSON 문자열
+     * @param defaultMessageCode 기본 메시지 코드 (JSON에 없을 경우 사용)
+     * @param messageType 메시지 타입
+     * @return Message 객체
+     */
+    public Message fromJson(String json, String defaultMessageCode, MessageType messageType) {
         try {
             Map<String, Object> map = objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
 
@@ -63,7 +77,7 @@ public class HttpMessageConverter {
 
             Message.MessageBuilder builder = Message.builder()
                     .messageCode(messageCode)
-                    .messageType(MessageType.REQUEST)
+                    .messageType(messageType)
                     .transportType(TransportType.HTTP);
 
             if (messageId != null) {
@@ -158,6 +172,13 @@ public class HttpMessageConverter {
         } catch (JsonProcessingException e) {
             return "{\"status\":\"" + status + "\"}";
         }
+    }
+
+    /**
+     * Charset 반환
+     */
+    public Charset getCharset() {
+        return charset;
     }
 
     /**

@@ -1,4 +1,4 @@
-package springware.mci.server.http;
+package springware.mci.common.http;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -50,6 +50,20 @@ class HttpMessageConverterTest {
 
         // then
         assertThat(message.getMessageCode()).isEqualTo("DEFAULT");
+    }
+
+    @Test
+    @DisplayName("JSON을 Message로 변환 - 메시지 타입 지정")
+    void fromJson_withMessageType() {
+        // given
+        String json = "{\"messageCode\":\"BAL2\",\"fields\":{\"balance\":1000000}}";
+
+        // when
+        Message message = converter.fromJson(json, null, MessageType.RESPONSE);
+
+        // then
+        assertThat(message.getMessageCode()).isEqualTo("BAL2");
+        assertThat(message.getMessageType()).isEqualTo(MessageType.RESPONSE);
     }
 
     @Test
@@ -223,5 +237,24 @@ class HttpMessageConverterTest {
         // then
         assertThat(message.getString("echoData")).isEqualTo("안녕하세요");
         assertThat(resultJson).contains("안녕하세요");
+    }
+
+    // ==================== getCharset Tests ====================
+
+    @Test
+    @DisplayName("Charset 조회")
+    void getCharset() {
+        // given
+        HttpMessageConverter utf8Converter = new HttpMessageConverter(StandardCharsets.UTF_8);
+
+        // then
+        assertThat(utf8Converter.getCharset()).isEqualTo(StandardCharsets.UTF_8);
+    }
+
+    @Test
+    @DisplayName("기본 Charset은 UTF-8")
+    void defaultCharset() {
+        // then
+        assertThat(converter.getCharset()).isEqualTo(StandardCharsets.UTF_8);
     }
 }

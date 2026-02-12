@@ -1,13 +1,12 @@
 package springware.mci.client.http;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import springware.mci.client.config.ClientConfig;
 import springware.mci.client.core.AbstractMciClient;
 import springware.mci.common.core.Message;
 import springware.mci.common.core.MessageType;
 import springware.mci.common.exception.ConnectionException;
+import springware.mci.common.http.HttpMessageConverter;
 import springware.mci.common.layout.LayoutManager;
 import springware.mci.common.logging.MessageLogger;
 
@@ -15,7 +14,6 @@ import java.net.URI;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -28,31 +26,19 @@ import java.util.concurrent.ConcurrentHashMap;
 public class HttpClient extends AbstractMciClient {
 
     private java.net.http.HttpClient httpClient;
-    private final ObjectMapper objectMapper;
+    private final HttpMessageConverter messageConverter;
     private final Map<String, String> endpointMap;
-
-    /**
-     * 기본 엔드포인트 매핑
-     */
-    private static final Map<String, String> DEFAULT_ENDPOINTS = Map.of(
-            "BAL1", "/api/balance",
-            "TRF1", "/api/transfer",
-            "TXH1", "/api/transactions",
-            "ACT1", "/api/account",
-            "ECH1", "/api/echo",
-            "HBT1", "/api/heartbeat"
-    );
 
     public HttpClient(ClientConfig config) {
         super(config);
-        this.objectMapper = new ObjectMapper();
-        this.endpointMap = new ConcurrentHashMap<>(DEFAULT_ENDPOINTS);
+        this.messageConverter = new HttpMessageConverter(config.getCharset());
+        this.endpointMap = new ConcurrentHashMap<>();
     }
 
     public HttpClient(ClientConfig config, LayoutManager layoutManager, MessageLogger messageLogger) {
         super(config, layoutManager, messageLogger);
-        this.objectMapper = new ObjectMapper();
-        this.endpointMap = new ConcurrentHashMap<>(DEFAULT_ENDPOINTS);
+        this.messageConverter = new HttpMessageConverter(config.getCharset());
+        this.endpointMap = new ConcurrentHashMap<>();
     }
 
     /**
@@ -103,13 +89,8 @@ public class HttpClient extends AbstractMciClient {
         String url = buildUrl(endpoint);
 
         try {
-            // JSON 요청 바디 생성
-            Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("messageCode", message.getMessageCode());
-            requestBody.put("messageId", message.getMessageId());
-            requestBody.put("fields", message.getFields());
-
-            String jsonBody = objectMapper.writeValueAsString(requestBody);
+            // Message를 JSON으로 변환
+            String jsonBody = messageConverter.toJson(message);
             byte[] bodyBytes = jsonBody.getBytes(config.getCharset());
 
             // HTTP 요청 빌드
@@ -165,28 +146,13 @@ public class HttpClient extends AbstractMciClient {
             log.debug("Received HTTP response: status={}, body length={}", statusCode, body.length());
 
             if (statusCode >= 200 && statusCode < 300) {
-                // JSON 응답 파싱
-                Map<String, Object> responseBody = objectMapper.readValue(
-                        body, new TypeReference<Map<String, Object>>() {});
-
-                String messageCode = (String) responseBody.get("messageCode");
-                String messageId = (String) responseBody.getOrDefault("messageId", request.getMessageId());
-
-                @SuppressWarnings("unchecked")
-                Map<String, Object> fields = (Map<String, Object>) responseBody.getOrDefault("fields", new HashMap<>());
-
-                Message responseMessage = Message.builder()
-                        .messageId(messageId)
-                        .messageCode(messageCode)
-                        .messageType(MessageType.RESPONSE)
-                        .build();
-
-                fields.forEach(responseMessage::setField);
+                // JSON 응답을 Message로 변환
+                Message responseMessage = messageConverter.fromJson(body, request.getMessageCode(), MessageType.RESPONSE);
 
                 // 수신 로깅
                 byte[] responseBytes = body.getBytes(config.getCharset());
                 responseMessage.setRawData(responseBytes);
-                messageLogger.logReceive(responseMessage, layoutManager.getLayout(messageCode), responseBytes);
+                messageLogger.logReceive(responseMessage, layoutManager.getLayout(responseMessage.getMessageCode()), responseBytes);
 
                 return responseMessage;
 
@@ -282,5 +248,12 @@ public class HttpClient extends AbstractMciClient {
             future.completeExceptionally(new ConnectionException("Failed to send HTTP GET request", e));
             return future;
         }
+    }
+
+    /**
+     * 메시지 변환기 조회
+     */
+    public HttpMessageConverter getMessageConverter() {
+        return messageConverter;
     }
 }

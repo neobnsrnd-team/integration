@@ -25,6 +25,18 @@ public class HttpDemoClient {
     private final HttpClient client;
     private final AtomicLong sequenceNo = new AtomicLong(0);
 
+    /**
+     * 데모용 엔드포인트 매핑
+     */
+    private static final Map<String, String> DEMO_ENDPOINTS = Map.of(
+            DemoMessageCodes.BALANCE_INQUIRY_REQ, "/api/balance",
+            DemoMessageCodes.TRANSFER_REQ, "/api/transfer",
+            DemoMessageCodes.TX_HISTORY_REQ, "/api/transactions",
+            DemoMessageCodes.ACCOUNT_INFO_REQ, "/api/account",
+            DemoMessageCodes.ECHO_REQ, "/api/echo",
+            DemoMessageCodes.HEARTBEAT_REQ, "/api/heartbeat"
+    );
+
     public HttpDemoClient(String host, int port) {
         // 레이아웃 등록
         DemoLayoutRegistry registry = new DemoLayoutRegistry();
@@ -41,6 +53,9 @@ public class HttpDemoClient {
                 .build();
 
         client = new HttpClient(config, layoutManager, new springware.mci.common.logging.DefaultMessageLogger());
+
+        // 데모용 엔드포인트 등록
+        client.registerEndpoints(DEMO_ENDPOINTS);
     }
 
     /**

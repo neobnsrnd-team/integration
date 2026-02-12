@@ -62,12 +62,23 @@ public class HttpDemoServer {
     }
 
     /**
-     * 커스텀 엔드포인트 등록
+     * 데모용 엔드포인트 등록
      */
     private void registerCustomEndpoints(RestEndpointRegistry registry) {
-        // 기본 엔드포인트는 RestEndpointRegistry 생성자에서 등록됨
-        // 추가 엔드포인트가 필요한 경우 여기서 등록
-        log.debug("Using default endpoint mappings");
+        // 잔액조회
+        registry.register("/api/balance", DemoMessageCodes.BALANCE_INQUIRY_REQ);
+        // 이체
+        registry.register("/api/transfer", DemoMessageCodes.TRANSFER_REQ);
+        // 거래내역조회
+        registry.register("/api/transactions", DemoMessageCodes.TX_HISTORY_REQ);
+        // 계좌정보조회
+        registry.register("/api/account", DemoMessageCodes.ACCOUNT_INFO_REQ);
+        // 에코
+        registry.register("/api/echo", DemoMessageCodes.ECHO_REQ);
+        // 하트비트
+        registry.register("/api/heartbeat", DemoMessageCodes.HEARTBEAT_REQ);
+
+        log.debug("Registered {} demo endpoints", registry.size());
     }
 
     /**

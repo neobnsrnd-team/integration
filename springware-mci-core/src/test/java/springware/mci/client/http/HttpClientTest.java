@@ -127,6 +127,7 @@ class HttpClientTest {
         // given
         ClientConfig config = ClientConfig.httpClient("localhost", testPort);
         HttpClient client = new HttpClient(config);
+        client.registerEndpoint("ECHO", "/api/echo");  // 엔드포인트 등록
         client.connect();
 
         try {
@@ -156,6 +157,7 @@ class HttpClientTest {
         // given
         ClientConfig config = ClientConfig.httpClient("localhost", testPort);
         HttpClient client = new HttpClient(config);
+        client.registerEndpoint("ECHO", "/api/echo");  // 엔드포인트 등록
         client.connect();
 
         try {
@@ -184,6 +186,7 @@ class HttpClientTest {
         // given
         ClientConfig config = ClientConfig.httpClient("localhost", testPort);
         HttpClient client = new HttpClient(config);
+        client.registerEndpoint("ECHO", "/api/echo");  // 엔드포인트 등록
         client.connect();
 
         try {
@@ -283,6 +286,7 @@ class HttpClientTest {
         // given
         ClientConfig config = ClientConfig.httpClient("localhost", testPort);
         HttpClient client = new HttpClient(config);
+        client.registerEndpoint("ECHO", "/api/echo");  // 엔드포인트 등록
         client.connect();
 
         try {
@@ -342,6 +346,7 @@ class HttpClientTest {
         // given
         ClientConfig config = ClientConfig.httpClient("localhost", testPort);
         HttpClient client = new HttpClient(config);
+        client.registerEndpoint("ECHO", "/api/echo");  // 엔드포인트 등록
         client.connect();
 
         try {

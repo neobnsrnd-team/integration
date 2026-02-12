@@ -23,28 +23,10 @@ public class RestEndpointRegistry {
     private final Map<String, String> messageCodeToPath = new ConcurrentHashMap<>();
 
     /**
-     * 기본 엔드포인트 매핑 등록
+     * 빈 레지스트리 생성
      */
     public RestEndpointRegistry() {
-        registerDefaults();
-    }
-
-    /**
-     * 기본 엔드포인트 매핑
-     */
-    private void registerDefaults() {
-        // 잔액조회
-        register("/api/balance", "BAL1");
-        // 이체
-        register("/api/transfer", "TRF1");
-        // 거래내역조회
-        register("/api/transactions", "TXH1");
-        // 계좌정보조회
-        register("/api/account", "ACT1");
-        // 에코
-        register("/api/echo", "ECH1");
-        // 하트비트
-        register("/api/heartbeat", "HBT1");
+        // 엔드포인트는 애플리케이션에서 등록
     }
 
     /**

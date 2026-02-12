@@ -18,27 +18,14 @@ class RestEndpointRegistryTest {
         registry = new RestEndpointRegistry();
     }
 
-    // ==================== Default Endpoints Tests ====================
+    // ==================== Initial State Tests ====================
 
     @Test
-    @DisplayName("기본 엔드포인트 등록 확인")
-    void defaultEndpoints() {
-        // then - 기본 엔드포인트가 등록되어 있어야 함
-        assertThat(registry.getMessageCode("/api/balance")).isEqualTo("BAL1");
-        assertThat(registry.getMessageCode("/api/transfer")).isEqualTo("TRF1");
-        assertThat(registry.getMessageCode("/api/transactions")).isEqualTo("TXH1");
-        assertThat(registry.getMessageCode("/api/account")).isEqualTo("ACT1");
-        assertThat(registry.getMessageCode("/api/echo")).isEqualTo("ECH1");
-        assertThat(registry.getMessageCode("/api/heartbeat")).isEqualTo("HBT1");
-    }
-
-    @Test
-    @DisplayName("기본 엔드포인트 역방향 조회")
-    void defaultEndpoints_reverse() {
-        // then
-        assertThat(registry.getPath("BAL1")).isEqualTo("/api/balance");
-        assertThat(registry.getPath("TRF1")).isEqualTo("/api/transfer");
-        assertThat(registry.getPath("ECH1")).isEqualTo("/api/echo");
+    @DisplayName("초기 상태 - 빈 레지스트리")
+    void initialState_empty() {
+        // then - 새 레지스트리는 비어있음
+        assertThat(registry.size()).isEqualTo(0);
+        assertThat(registry.getMessageCode("/api/test")).isNull();
     }
 
     // ==================== Register Tests ====================
@@ -69,16 +56,34 @@ class RestEndpointRegistryTest {
         // then
         assertThat(registry.getMessageCode("/api/new1")).isEqualTo("NEW1");
         assertThat(registry.getMessageCode("/api/new2")).isEqualTo("NEW2");
+        assertThat(registry.size()).isEqualTo(2);
     }
 
     @Test
     @DisplayName("기존 엔드포인트 덮어쓰기")
     void register_overwrite() {
+        // given
+        registry.register("/api/balance", "BAL1");
+
         // when
         registry.register("/api/balance", "NEWBAL");
 
         // then
         assertThat(registry.getMessageCode("/api/balance")).isEqualTo("NEWBAL");
+    }
+
+    @Test
+    @DisplayName("역방향 조회")
+    void register_reverseMapping() {
+        // given
+        registry.register("/api/balance", "BAL1");
+        registry.register("/api/transfer", "TRF1");
+        registry.register("/api/echo", "ECH1");
+
+        // then
+        assertThat(registry.getPath("BAL1")).isEqualTo("/api/balance");
+        assertThat(registry.getPath("TRF1")).isEqualTo("/api/transfer");
+        assertThat(registry.getPath("ECH1")).isEqualTo("/api/echo");
     }
 
     // ==================== Get Tests ====================
@@ -108,6 +113,9 @@ class RestEndpointRegistryTest {
     @Test
     @DisplayName("경로 존재 여부 확인")
     void hasPath() {
+        // given
+        registry.register("/api/balance", "BAL1");
+
         // then
         assertThat(registry.hasPath("/api/balance")).isTrue();
         assertThat(registry.hasPath("/api/unknown")).isFalse();
@@ -116,6 +124,9 @@ class RestEndpointRegistryTest {
     @Test
     @DisplayName("메시지 코드 존재 여부 확인")
     void hasMessageCode() {
+        // given
+        registry.register("/api/balance", "BAL1");
+
         // then
         assertThat(registry.hasMessageCode("BAL1")).isTrue();
         assertThat(registry.hasMessageCode("UNKNOWN")).isFalse();
@@ -126,6 +137,9 @@ class RestEndpointRegistryTest {
     @Test
     @DisplayName("경로로 엔드포인트 제거")
     void unregister() {
+        // given
+        registry.register("/api/balance", "BAL1");
+
         // when
         registry.unregister("/api/balance");
 
@@ -137,6 +151,9 @@ class RestEndpointRegistryTest {
     @Test
     @DisplayName("메시지 코드로 엔드포인트 제거")
     void unregisterByMessageCode() {
+        // given
+        registry.register("/api/transfer", "TRF1");
+
         // when
         registry.unregisterByMessageCode("TRF1");
 
@@ -157,6 +174,10 @@ class RestEndpointRegistryTest {
     @Test
     @DisplayName("모든 엔드포인트 제거")
     void clear() {
+        // given
+        registry.register("/api/balance", "BAL1");
+        registry.register("/api/transfer", "TRF1");
+
         // when
         registry.clear();
 
@@ -170,14 +191,15 @@ class RestEndpointRegistryTest {
     @Test
     @DisplayName("등록된 엔드포인트 수 확인")
     void size() {
-        // then - 기본 6개 등록됨
-        assertThat(registry.size()).isEqualTo(6);
+        // given - 초기 상태는 0
+        assertThat(registry.size()).isEqualTo(0);
 
         // when
-        registry.register("/api/new", "NEW1");
+        registry.register("/api/new1", "NEW1");
+        registry.register("/api/new2", "NEW2");
 
         // then
-        assertThat(registry.size()).isEqualTo(7);
+        assertThat(registry.size()).isEqualTo(2);
     }
 
     // ==================== GetAllMappings Tests ====================
@@ -185,11 +207,15 @@ class RestEndpointRegistryTest {
     @Test
     @DisplayName("모든 매핑 조회")
     void getAllMappings() {
+        // given
+        registry.register("/api/balance", "BAL1");
+        registry.register("/api/transfer", "TRF1");
+
         // when
         Map<String, String> mappings = registry.getAllMappings();
 
         // then
-        assertThat(mappings).hasSize(6);
+        assertThat(mappings).hasSize(2);
         assertThat(mappings).containsEntry("/api/balance", "BAL1");
         assertThat(mappings).containsEntry("/api/transfer", "TRF1");
     }
@@ -197,6 +223,9 @@ class RestEndpointRegistryTest {
     @Test
     @DisplayName("반환된 매핑은 불변")
     void getAllMappings_immutable() {
+        // given
+        registry.register("/api/test", "TEST");
+
         // when
         Map<String, String> mappings = registry.getAllMappings();
 
