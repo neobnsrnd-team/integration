@@ -10,9 +10,14 @@ import springware.mci.common.http.HttpMessageConverter;
 import springware.mci.common.layout.LayoutManager;
 import springware.mci.common.logging.MessageLogger;
 
+import javax.net.ssl.*;
+import java.io.FileInputStream;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.security.KeyStore;
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -59,19 +64,117 @@ public class HttpClient extends AbstractMciClient {
 
     @Override
     protected void doConnect() {
-        java.net.http.HttpClient.Builder builder = java.net.http.HttpClient.newBuilder()
-                .version(java.net.http.HttpClient.Version.HTTP_1_1)
-                .connectTimeout(Duration.ofMillis(config.getConnectTimeout()));
+        try {
+            java.net.http.HttpClient.Builder builder = java.net.http.HttpClient.newBuilder()
+                    .version(java.net.http.HttpClient.Version.HTTP_1_1)
+                    .connectTimeout(Duration.ofMillis(config.getConnectTimeout()));
 
-        // followRedirects 설정
-        if (config.isFollowRedirects()) {
-            builder.followRedirects(java.net.http.HttpClient.Redirect.NORMAL);
-        } else {
-            builder.followRedirects(java.net.http.HttpClient.Redirect.NEVER);
+            // followRedirects 설정
+            if (config.isFollowRedirects()) {
+                builder.followRedirects(java.net.http.HttpClient.Redirect.NORMAL);
+            } else {
+                builder.followRedirects(java.net.http.HttpClient.Redirect.NEVER);
+            }
+
+            // SSL/TLS 설정
+            if (config.isSslEnabled()) {
+                SSLContext sslContext = createSslContext();
+                builder.sslContext(sslContext);
+
+                // 호스트명 검증 스킵 (개발용)
+                if (config.isSkipHostnameVerification()) {
+                    System.setProperty("jdk.internal.httpclient.disableHostnameVerification", "true");
+                    log.warn("SSL hostname verification is disabled. Do not use in production!");
+                }
+
+                log.debug("SSL/TLS enabled with protocol: {}", config.getSslProtocol());
+            }
+
+            httpClient = builder.build();
+
+            String scheme = config.isSslEnabled() ? "HTTPS" : "HTTP";
+            log.debug("{} client initialized for {}:{}", scheme, config.getHost(), config.getPort());
+
+        } catch (Exception e) {
+            throw new ConnectionException("Failed to initialize HTTP client with SSL", e);
+        }
+    }
+
+    /**
+     * SSL Context 생성
+     */
+    private SSLContext createSslContext() throws Exception {
+        KeyManager[] keyManagers = null;
+        TrustManager[] trustManagers = null;
+
+        // KeyStore 설정 (클라이언트 인증서)
+        if (config.getKeyStorePath() != null && !config.getKeyStorePath().isEmpty()) {
+            KeyStore keyStore = KeyStore.getInstance(config.getKeyStoreType());
+            char[] password = config.getKeyStorePassword() != null
+                    ? config.getKeyStorePassword().toCharArray()
+                    : new char[0];
+
+            try (FileInputStream fis = new FileInputStream(config.getKeyStorePath())) {
+                keyStore.load(fis, password);
+            }
+
+            KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+            kmf.init(keyStore, password);
+            keyManagers = kmf.getKeyManagers();
+
+            log.debug("Loaded KeyStore from: {}", config.getKeyStorePath());
         }
 
-        httpClient = builder.build();
-        log.debug("HTTP client initialized for {}:{}", config.getHost(), config.getPort());
+        // TrustStore 설정 (서버 인증서 검증)
+        if (config.isTrustAllCertificates()) {
+            // 모든 인증서 신뢰 (개발용)
+            trustManagers = new TrustManager[]{new TrustAllCertificatesManager()};
+            log.warn("Trusting all SSL certificates. Do not use in production!");
+
+        } else if (config.getTrustStorePath() != null && !config.getTrustStorePath().isEmpty()) {
+            // 커스텀 TrustStore 사용
+            KeyStore trustStore = KeyStore.getInstance(config.getTrustStoreType());
+            char[] password = config.getTrustStorePassword() != null
+                    ? config.getTrustStorePassword().toCharArray()
+                    : new char[0];
+
+            try (FileInputStream fis = new FileInputStream(config.getTrustStorePath())) {
+                trustStore.load(fis, password);
+            }
+
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            tmf.init(trustStore);
+            trustManagers = tmf.getTrustManagers();
+
+            log.debug("Loaded TrustStore from: {}", config.getTrustStorePath());
+        }
+        // trustManagers가 null이면 기본 TrustManager 사용 (시스템 CA 인증서)
+
+        SSLContext sslContext = SSLContext.getInstance(config.getSslProtocol());
+        sslContext.init(keyManagers, trustManagers, new SecureRandom());
+
+        return sslContext;
+    }
+
+    /**
+     * 모든 인증서를 신뢰하는 TrustManager (개발용)
+     * 주의: 프로덕션에서 절대 사용 금지
+     */
+    private static class TrustAllCertificatesManager implements X509TrustManager {
+        @Override
+        public void checkClientTrusted(X509Certificate[] chain, String authType) {
+            // 모든 클라이언트 인증서 신뢰
+        }
+
+        @Override
+        public void checkServerTrusted(X509Certificate[] chain, String authType) {
+            // 모든 서버 인증서 신뢰
+        }
+
+        @Override
+        public X509Certificate[] getAcceptedIssuers() {
+            return new X509Certificate[0];
+        }
     }
 
     @Override

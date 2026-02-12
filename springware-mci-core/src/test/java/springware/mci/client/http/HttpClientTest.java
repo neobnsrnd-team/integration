@@ -365,4 +365,114 @@ class HttpClientTest {
             client.disconnect();
         }
     }
+
+    // ==================== SSL Configuration Tests ====================
+
+    @Test
+    @Order(70)
+    @DisplayName("ClientConfig.httpsClient() 팩토리 메서드")
+    void httpsClientFactoryMethod() {
+        // when
+        ClientConfig config = ClientConfig.httpsClient("localhost", 8443);
+
+        // then
+        assertThat(config.getHost()).isEqualTo("localhost");
+        assertThat(config.getPort()).isEqualTo(8443);
+        assertThat(config.isSslEnabled()).isTrue();
+        assertThat(config.getTransportType()).isEqualTo(TransportType.HTTP);
+    }
+
+    @Test
+    @Order(71)
+    @DisplayName("ClientConfig.httpsClient(baseUrl) 팩토리 메서드")
+    void httpsClientBaseUrlFactoryMethod() {
+        // when
+        ClientConfig config = ClientConfig.httpsClient("https://api.example.com");
+
+        // then
+        assertThat(config.getBaseUrl()).isEqualTo("https://api.example.com");
+        assertThat(config.isSslEnabled()).isTrue();
+        assertThat(config.getTransportType()).isEqualTo(TransportType.HTTP);
+    }
+
+    @Test
+    @Order(72)
+    @DisplayName("ClientConfig.httpsClientTrustAll() 팩토리 메서드")
+    void httpsClientTrustAllFactoryMethod() {
+        // when
+        ClientConfig config = ClientConfig.httpsClientTrustAll("localhost", 8443);
+
+        // then
+        assertThat(config.isSslEnabled()).isTrue();
+        assertThat(config.isTrustAllCertificates()).isTrue();
+        assertThat(config.isSkipHostnameVerification()).isTrue();
+    }
+
+    @Test
+    @Order(73)
+    @DisplayName("SSL 설정 옵션")
+    void sslConfigurationOptions() {
+        // when
+        ClientConfig config = ClientConfig.builder()
+                .clientId("ssl-test-client")
+                .host("localhost")
+                .port(8443)
+                .sslEnabled(true)
+                .keyStorePath("/path/to/keystore.p12")
+                .keyStorePassword("password")
+                .keyStoreType("PKCS12")
+                .trustStorePath("/path/to/truststore.p12")
+                .trustStorePassword("password")
+                .trustStoreType("PKCS12")
+                .sslProtocol("TLSv1.3")
+                .build();
+
+        // then
+        assertThat(config.isSslEnabled()).isTrue();
+        assertThat(config.getKeyStorePath()).isEqualTo("/path/to/keystore.p12");
+        assertThat(config.getKeyStorePassword()).isEqualTo("password");
+        assertThat(config.getKeyStoreType()).isEqualTo("PKCS12");
+        assertThat(config.getTrustStorePath()).isEqualTo("/path/to/truststore.p12");
+        assertThat(config.getTrustStorePassword()).isEqualTo("password");
+        assertThat(config.getTrustStoreType()).isEqualTo("PKCS12");
+        assertThat(config.getSslProtocol()).isEqualTo("TLSv1.3");
+    }
+
+    @Test
+    @Order(74)
+    @DisplayName("SSL 기본값")
+    void sslDefaultValues() {
+        // when
+        ClientConfig config = ClientConfig.builder()
+                .clientId("ssl-default-test")
+                .host("localhost")
+                .port(8443)
+                .sslEnabled(true)
+                .build();
+
+        // then
+        assertThat(config.getKeyStoreType()).isEqualTo("PKCS12");
+        assertThat(config.getTrustStoreType()).isEqualTo("PKCS12");
+        assertThat(config.getSslProtocol()).isEqualTo("TLS");
+        assertThat(config.isTrustAllCertificates()).isFalse();
+        assertThat(config.isSkipHostnameVerification()).isFalse();
+    }
+
+    @Test
+    @Order(75)
+    @DisplayName("URL 스킴 - HTTP vs HTTPS")
+    void urlScheme() {
+        // given
+        ClientConfig httpConfig = ClientConfig.httpClient("localhost", 8080);
+        ClientConfig httpsConfig = ClientConfig.httpsClient("localhost", 8443);
+
+        HttpClient httpClient = new HttpClient(httpConfig);
+        HttpClient httpsClient = new HttpClient(httpsConfig);
+
+        // when/then - HTTP는 http:// 스킴 사용
+        assertThat(httpConfig.isSslEnabled()).isFalse();
+
+        // when/then - HTTPS는 https:// 스킴 사용
+        assertThat(httpsConfig.isSslEnabled()).isTrue();
+    }
 }

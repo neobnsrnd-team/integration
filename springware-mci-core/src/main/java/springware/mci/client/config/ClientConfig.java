@@ -148,14 +148,64 @@ public class ClientConfig {
     private final boolean sslEnabled = false;
 
     /**
-     * SSL 인증서 경로
+     * SSL 인증서 경로 (클라이언트 인증서)
      */
     private final String sslCertPath;
 
     /**
-     * SSL 키 경로
+     * SSL 키 경로 (클라이언트 키)
      */
     private final String sslKeyPath;
+
+    /**
+     * KeyStore 경로 (PKCS12/JKS)
+     */
+    private final String keyStorePath;
+
+    /**
+     * KeyStore 비밀번호
+     */
+    private final String keyStorePassword;
+
+    /**
+     * KeyStore 타입 (PKCS12, JKS)
+     */
+    @Builder.Default
+    private final String keyStoreType = "PKCS12";
+
+    /**
+     * TrustStore 경로
+     */
+    private final String trustStorePath;
+
+    /**
+     * TrustStore 비밀번호
+     */
+    private final String trustStorePassword;
+
+    /**
+     * TrustStore 타입 (PKCS12, JKS)
+     */
+    @Builder.Default
+    private final String trustStoreType = "PKCS12";
+
+    /**
+     * 모든 인증서 신뢰 여부 (개발용, 프로덕션에서 사용 금지)
+     */
+    @Builder.Default
+    private final boolean trustAllCertificates = false;
+
+    /**
+     * 호스트명 검증 스킵 여부 (개발용, 프로덕션에서 사용 금지)
+     */
+    @Builder.Default
+    private final boolean skipHostnameVerification = false;
+
+    /**
+     * SSL/TLS 프로토콜 버전 (TLSv1.2, TLSv1.3)
+     */
+    @Builder.Default
+    private final String sslProtocol = "TLS";
 
     // ========== HTTP 전용 설정 ==========
 
@@ -239,6 +289,49 @@ public class ClientConfig {
                 .port(80)           // dummy - baseUrl이 우선
                 .baseUrl(baseUrl)
                 .transportType(TransportType.HTTP)
+                .build();
+    }
+
+    /**
+     * HTTPS 클라이언트 설정 (SSL 활성화)
+     */
+    public static ClientConfig httpsClient(String host, int port) {
+        return ClientConfig.builder()
+                .clientId("https-client-" + System.currentTimeMillis())
+                .host(host)
+                .port(port)
+                .transportType(TransportType.HTTP)
+                .sslEnabled(true)
+                .build();
+    }
+
+    /**
+     * HTTPS 클라이언트 설정 (Base URL 사용)
+     */
+    public static ClientConfig httpsClient(String baseUrl) {
+        return ClientConfig.builder()
+                .clientId("https-client-" + System.currentTimeMillis())
+                .host("localhost")  // dummy - baseUrl이 우선
+                .port(443)          // dummy - baseUrl이 우선
+                .baseUrl(baseUrl)
+                .transportType(TransportType.HTTP)
+                .sslEnabled(true)
+                .build();
+    }
+
+    /**
+     * HTTPS 클라이언트 설정 (개발용 - 모든 인증서 신뢰)
+     * 주의: 프로덕션에서 사용 금지
+     */
+    public static ClientConfig httpsClientTrustAll(String host, int port) {
+        return ClientConfig.builder()
+                .clientId("https-client-" + System.currentTimeMillis())
+                .host(host)
+                .port(port)
+                .transportType(TransportType.HTTP)
+                .sslEnabled(true)
+                .trustAllCertificates(true)
+                .skipHostnameVerification(true)
                 .build();
     }
 
