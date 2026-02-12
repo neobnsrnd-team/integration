@@ -123,14 +123,58 @@ public class ServerConfig {
     private final boolean sslEnabled = false;
 
     /**
-     * SSL 인증서 경로
+     * SSL 인증서 경로 (PEM 형식)
      */
     private final String sslCertPath;
 
     /**
-     * SSL 키 경로
+     * SSL 키 경로 (PEM 형식)
      */
     private final String sslKeyPath;
+
+    /**
+     * KeyStore 경로 (PKCS12/JKS)
+     */
+    private final String keyStorePath;
+
+    /**
+     * KeyStore 비밀번호
+     */
+    private final String keyStorePassword;
+
+    /**
+     * KeyStore 타입 (PKCS12, JKS)
+     */
+    @Builder.Default
+    private final String keyStoreType = "PKCS12";
+
+    /**
+     * TrustStore 경로 (클라이언트 인증용)
+     */
+    private final String trustStorePath;
+
+    /**
+     * TrustStore 비밀번호
+     */
+    private final String trustStorePassword;
+
+    /**
+     * TrustStore 타입 (PKCS12, JKS)
+     */
+    @Builder.Default
+    private final String trustStoreType = "PKCS12";
+
+    /**
+     * 클라이언트 인증 필요 여부
+     */
+    @Builder.Default
+    private final boolean clientAuthRequired = false;
+
+    /**
+     * SSL/TLS 프로토콜 버전 (TLSv1.2, TLSv1.3)
+     */
+    @Builder.Default
+    private final String sslProtocol = "TLS";
 
     // ========== HTTP 전용 설정 ==========
 
@@ -193,6 +237,56 @@ public class ServerConfig {
                 .serverId("http-server-" + System.currentTimeMillis())
                 .port(port)
                 .transportType(TransportType.HTTP)
+                .corsEnabled(true)
+                .healthCheckEnabled(true)
+                .build();
+    }
+
+    /**
+     * HTTPS 서버 설정 (KeyStore 사용)
+     */
+    public static ServerConfig httpsServer(int port, String keyStorePath, String keyStorePassword) {
+        return ServerConfig.builder()
+                .serverId("https-server-" + System.currentTimeMillis())
+                .port(port)
+                .transportType(TransportType.HTTP)
+                .sslEnabled(true)
+                .keyStorePath(keyStorePath)
+                .keyStorePassword(keyStorePassword)
+                .corsEnabled(true)
+                .healthCheckEnabled(true)
+                .build();
+    }
+
+    /**
+     * HTTPS 서버 설정 (PEM 인증서 사용)
+     */
+    public static ServerConfig httpsServer(int port) {
+        return ServerConfig.builder()
+                .serverId("https-server-" + System.currentTimeMillis())
+                .port(port)
+                .transportType(TransportType.HTTP)
+                .sslEnabled(true)
+                .corsEnabled(true)
+                .healthCheckEnabled(true)
+                .build();
+    }
+
+    /**
+     * HTTPS 서버 설정 (클라이언트 인증 포함)
+     */
+    public static ServerConfig httpsServerWithClientAuth(int port, String keyStorePath, String keyStorePassword,
+                                                         String trustStorePath, String trustStorePassword) {
+        return ServerConfig.builder()
+                .serverId("https-server-" + System.currentTimeMillis())
+                .port(port)
+                .transportType(TransportType.HTTP)
+                .sslEnabled(true)
+                .keyStorePath(keyStorePath)
+                .keyStorePassword(keyStorePassword)
+                .trustStorePath(trustStorePath)
+                .trustStorePassword(trustStorePassword)
+                .clientAuthRequired(true)
                 .corsEnabled(true)
                 .healthCheckEnabled(true)
                 .build();

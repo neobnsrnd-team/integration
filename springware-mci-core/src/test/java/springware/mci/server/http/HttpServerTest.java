@@ -312,4 +312,122 @@ class HttpServerTest {
                 .isPresent()
                 .get().asString().contains("application/json");
     }
+
+    // ==================== SSL Configuration Tests ====================
+
+    @Test
+    @Order(70)
+    @DisplayName("ServerConfig.httpsServer() 팩토리 메서드")
+    void httpsServerFactoryMethod() {
+        // when
+        ServerConfig config = ServerConfig.httpsServer(8443);
+
+        // then
+        assertThat(config.getPort()).isEqualTo(8443);
+        assertThat(config.isSslEnabled()).isTrue();
+        assertThat(config.isCorsEnabled()).isTrue();
+        assertThat(config.isHealthCheckEnabled()).isTrue();
+    }
+
+    @Test
+    @Order(71)
+    @DisplayName("ServerConfig.httpsServer(keyStore) 팩토리 메서드")
+    void httpsServerKeyStoreFactoryMethod() {
+        // when
+        ServerConfig config = ServerConfig.httpsServer(8443, "/path/to/keystore.p12", "password");
+
+        // then
+        assertThat(config.getPort()).isEqualTo(8443);
+        assertThat(config.isSslEnabled()).isTrue();
+        assertThat(config.getKeyStorePath()).isEqualTo("/path/to/keystore.p12");
+        assertThat(config.getKeyStorePassword()).isEqualTo("password");
+    }
+
+    @Test
+    @Order(72)
+    @DisplayName("ServerConfig.httpsServerWithClientAuth() 팩토리 메서드")
+    void httpsServerWithClientAuthFactoryMethod() {
+        // when
+        ServerConfig config = ServerConfig.httpsServerWithClientAuth(
+                8443,
+                "/path/to/keystore.p12", "keypass",
+                "/path/to/truststore.p12", "trustpass"
+        );
+
+        // then
+        assertThat(config.isSslEnabled()).isTrue();
+        assertThat(config.isClientAuthRequired()).isTrue();
+        assertThat(config.getKeyStorePath()).isEqualTo("/path/to/keystore.p12");
+        assertThat(config.getKeyStorePassword()).isEqualTo("keypass");
+        assertThat(config.getTrustStorePath()).isEqualTo("/path/to/truststore.p12");
+        assertThat(config.getTrustStorePassword()).isEqualTo("trustpass");
+    }
+
+    @Test
+    @Order(73)
+    @DisplayName("SSL 설정 옵션")
+    void sslConfigurationOptions() {
+        // when
+        ServerConfig config = ServerConfig.builder()
+                .serverId("ssl-test-server")
+                .port(8443)
+                .sslEnabled(true)
+                .keyStorePath("/path/to/keystore.p12")
+                .keyStorePassword("password")
+                .keyStoreType("PKCS12")
+                .trustStorePath("/path/to/truststore.p12")
+                .trustStorePassword("password")
+                .trustStoreType("PKCS12")
+                .clientAuthRequired(true)
+                .sslProtocol("TLSv1.3")
+                .build();
+
+        // then
+        assertThat(config.isSslEnabled()).isTrue();
+        assertThat(config.getKeyStorePath()).isEqualTo("/path/to/keystore.p12");
+        assertThat(config.getKeyStorePassword()).isEqualTo("password");
+        assertThat(config.getKeyStoreType()).isEqualTo("PKCS12");
+        assertThat(config.getTrustStorePath()).isEqualTo("/path/to/truststore.p12");
+        assertThat(config.getTrustStorePassword()).isEqualTo("password");
+        assertThat(config.getTrustStoreType()).isEqualTo("PKCS12");
+        assertThat(config.isClientAuthRequired()).isTrue();
+        assertThat(config.getSslProtocol()).isEqualTo("TLSv1.3");
+    }
+
+    @Test
+    @Order(74)
+    @DisplayName("SSL 기본값")
+    void sslDefaultValues() {
+        // when
+        ServerConfig config = ServerConfig.builder()
+                .serverId("ssl-default-test")
+                .port(8443)
+                .sslEnabled(true)
+                .build();
+
+        // then
+        assertThat(config.getKeyStoreType()).isEqualTo("PKCS12");
+        assertThat(config.getTrustStoreType()).isEqualTo("PKCS12");
+        assertThat(config.getSslProtocol()).isEqualTo("TLS");
+        assertThat(config.isClientAuthRequired()).isFalse();
+    }
+
+    @Test
+    @Order(75)
+    @DisplayName("PEM 인증서 설정")
+    void pemCertificateConfiguration() {
+        // when
+        ServerConfig config = ServerConfig.builder()
+                .serverId("pem-test-server")
+                .port(8443)
+                .sslEnabled(true)
+                .sslCertPath("/path/to/cert.pem")
+                .sslKeyPath("/path/to/key.pem")
+                .build();
+
+        // then
+        assertThat(config.isSslEnabled()).isTrue();
+        assertThat(config.getSslCertPath()).isEqualTo("/path/to/cert.pem");
+        assertThat(config.getSslKeyPath()).isEqualTo("/path/to/key.pem");
+    }
 }

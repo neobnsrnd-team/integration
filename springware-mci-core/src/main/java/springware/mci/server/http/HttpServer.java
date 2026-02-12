@@ -7,6 +7,9 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpServerCodec;
+import io.netty.handler.ssl.ClientAuth;
+import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.timeout.IdleStateHandler;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +19,11 @@ import springware.mci.common.logging.MessageLogger;
 import springware.mci.server.config.ServerConfig;
 import springware.mci.server.core.AbstractMciServer;
 
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.TrustManagerFactory;
+import java.io.File;
+import java.io.FileInputStream;
+import java.security.KeyStore;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -30,6 +38,7 @@ public class HttpServer extends AbstractMciServer {
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
     private Channel serverChannel;
+    private SslContext sslContext;
 
     @Getter
     private final RestEndpointRegistry endpointRegistry;
@@ -65,6 +74,12 @@ public class HttpServer extends AbstractMciServer {
                 : new NioEventLoopGroup();
 
         try {
+            // SSL/TLS 설정
+            if (config.isSslEnabled()) {
+                sslContext = createSslContext();
+                log.info("SSL/TLS enabled with protocol: {}", config.getSslProtocol());
+            }
+
             ServerBootstrap bootstrap = new ServerBootstrap();
             bootstrap.group(bossGroup, workerGroup)
                     .channel(NioServerSocketChannel.class)
@@ -76,6 +91,11 @@ public class HttpServer extends AbstractMciServer {
                         @Override
                         protected void initChannel(SocketChannel ch) {
                             ChannelPipeline pipeline = ch.pipeline();
+
+                            // SSL/TLS 핸들러 (첫 번째로 추가)
+                            if (sslContext != null) {
+                                pipeline.addLast("ssl", sslContext.newHandler(ch.alloc()));
+                            }
 
                             // 유휴 상태 핸들러
                             pipeline.addLast("idle", new IdleStateHandler(
@@ -106,7 +126,8 @@ public class HttpServer extends AbstractMciServer {
             ChannelFuture future = bootstrap.bind(config.getHost(), config.getPort()).sync();
             serverChannel = future.channel();
 
-            log.info("HTTP server started on {}:{}", config.getHost(), config.getPort());
+            String scheme = config.isSslEnabled() ? "HTTPS" : "HTTP";
+            log.info("{} server started on {}:{}", scheme, config.getHost(), config.getPort());
             log.info("Registered {} endpoints", endpointRegistry.size());
 
             if (config.isHealthCheckEnabled()) {
@@ -116,7 +137,78 @@ public class HttpServer extends AbstractMciServer {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException("HTTP server startup interrupted", e);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to initialize HTTP server with SSL", e);
         }
+    }
+
+    /**
+     * SSL Context 생성
+     */
+    private SslContext createSslContext() throws Exception {
+        SslContextBuilder builder;
+
+        // PEM 파일 사용 (sslCertPath, sslKeyPath)
+        if (config.getSslCertPath() != null && !config.getSslCertPath().isEmpty()
+                && config.getSslKeyPath() != null && !config.getSslKeyPath().isEmpty()) {
+
+            File certFile = new File(config.getSslCertPath());
+            File keyFile = new File(config.getSslKeyPath());
+            builder = SslContextBuilder.forServer(certFile, keyFile);
+            log.debug("Using PEM certificate: {}", config.getSslCertPath());
+
+        } else if (config.getKeyStorePath() != null && !config.getKeyStorePath().isEmpty()) {
+            // KeyStore 사용 (PKCS12/JKS)
+            KeyStore keyStore = KeyStore.getInstance(config.getKeyStoreType());
+            char[] password = config.getKeyStorePassword() != null
+                    ? config.getKeyStorePassword().toCharArray()
+                    : new char[0];
+
+            try (FileInputStream fis = new FileInputStream(config.getKeyStorePath())) {
+                keyStore.load(fis, password);
+            }
+
+            KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+            kmf.init(keyStore, password);
+            builder = SslContextBuilder.forServer(kmf);
+            log.debug("Using KeyStore: {}", config.getKeyStorePath());
+
+        } else {
+            throw new IllegalStateException("SSL is enabled but no certificate/keystore is configured");
+        }
+
+        // TrustStore 설정 (클라이언트 인증용)
+        if (config.getTrustStorePath() != null && !config.getTrustStorePath().isEmpty()) {
+            KeyStore trustStore = KeyStore.getInstance(config.getTrustStoreType());
+            char[] password = config.getTrustStorePassword() != null
+                    ? config.getTrustStorePassword().toCharArray()
+                    : new char[0];
+
+            try (FileInputStream fis = new FileInputStream(config.getTrustStorePath())) {
+                trustStore.load(fis, password);
+            }
+
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            tmf.init(trustStore);
+            builder.trustManager(tmf);
+            log.debug("Using TrustStore for client auth: {}", config.getTrustStorePath());
+        }
+
+        // 클라이언트 인증 설정
+        if (config.isClientAuthRequired()) {
+            builder.clientAuth(ClientAuth.REQUIRE);
+            log.info("Client authentication required");
+        } else if (config.getTrustStorePath() != null && !config.getTrustStorePath().isEmpty()) {
+            builder.clientAuth(ClientAuth.OPTIONAL);
+            log.info("Client authentication optional");
+        }
+
+        // SSL 프로토콜 설정
+        if (config.getSslProtocol() != null && !config.getSslProtocol().isEmpty()) {
+            builder.protocols(config.getSslProtocol());
+        }
+
+        return builder.build();
     }
 
     @Override
@@ -140,7 +232,10 @@ public class HttpServer extends AbstractMciServer {
             workerGroup = null;
         }
 
-        log.info("HTTP server stopped");
+        sslContext = null;
+
+        String scheme = config.isSslEnabled() ? "HTTPS" : "HTTP";
+        log.info("{} server stopped", scheme);
     }
 
     /**
