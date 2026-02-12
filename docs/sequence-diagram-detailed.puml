@@ -1,270 +1,270 @@
 @startuml MCI Framework Detailed Flow
 
-title Springware MCI Framework - Detailed Component Interaction
+title Springware MCI Framework - Detailed Protocol Flow
 
 skinparam backgroundColor #FEFEFE
 skinparam sequenceMessageAlign center
 
 ' Participants
-actor "User/Application" as User
+actor "User" as User
 
 box "Demo Layer" #E8F4FD
-    participant "TcpDemoClient" as DemoClient
-    participant "TcpDemoServer" as DemoServer
+    participant "BankTcpClient\nBankHttpClient" as DemoClient
+    participant "BankTcpServer\nBankHttpServer" as DemoServer
 end box
 
-box "Client Core" #E8F8E8
-    participant "AbstractMciClient" as AbstractClient
-    participant "TcpClient" as TcpClient
+box "Core Client" #E8F8E8
+    participant "TcpClient / HttpClient" as CoreClient
     participant "CircuitBreaker" as CB
     participant "HealthChecker" as HC
 end box
 
-box "Common Core" #FFF8E8
+box "Common Layer" #FFF8E8
     participant "LayoutManager" as LayoutMgr
     participant "MessageLayout" as Layout
     participant "ProtocolConfig" as Protocol
-    participant "MessageLogger" as Logger
 end box
 
-box "Server Core" #F8E8F8
-    participant "AbstractMciServer" as AbstractServer
-    participant "TcpServer" as TcpServer
+box "Core Server" #F8E8F8
+    participant "TcpServer / HttpServer" as CoreServer
     participant "BizRegistry" as BizReg
     participant "Biz" as Biz
 end box
 
-== Initialization ==
+== Initialization Phase ==
 
 User -> DemoServer : start()
 activate DemoServer
 
-DemoServer -> AbstractServer : super.start()
-activate AbstractServer
+DemoServer -> CoreServer : new TcpServer(config) or\nnew HttpServer(config)
+activate CoreServer
 
-AbstractServer -> LayoutMgr : registerLayout(BAL1, BAL2, TRF1...)
-note right: Load layouts from YAML files
+CoreServer -> LayoutMgr : registerLayouts(BAL1, BAL2, CRD1...)
+note right: Load 17 YAML layouts\n(Banking + Card)
 
-AbstractServer -> BizReg : register("BAL1", BalanceInquiryBiz)
-AbstractServer -> BizReg : register("TRF1", TransferBiz)
-AbstractServer -> BizReg : register("ECHO", EchoBiz)
+CoreServer -> BizReg : register("BAL1", BalanceInquiryBiz)
+CoreServer -> BizReg : register("TRF1", TransferBiz)
+CoreServer -> BizReg : register("CRD1", CardListBiz)
+CoreServer -> BizReg : register("CUH1", CardUsageHistoryBiz)
 
-AbstractServer --> DemoServer
-deactivate AbstractServer
+alt TCP Server
+    CoreServer -> CoreServer : Create Netty ServerBootstrap\nBind to port 9001/9011
+else HTTP/HTTPS Server
+    CoreServer -> CoreServer : Create HttpServer\nBind to port 9003/9443
+end
 
-DemoServer -> TcpServer : new TcpServer(config, protocol)
-activate TcpServer
-
-TcpServer -> TcpServer : Create Netty ServerBootstrap\nBind to port
-
-TcpServer --> DemoServer : Server started
-deactivate TcpServer
+CoreServer --> DemoServer : Server started
+deactivate CoreServer
 deactivate DemoServer
 
 == Client Connection ==
 
-User -> DemoClient : new TcpDemoClient()
-activate DemoClient
-
-DemoClient -> TcpClient : new TcpClient(config)
-activate TcpClient
-
-TcpClient -> CB : new CircuitBreaker(config)
-TcpClient -> HC : new HealthChecker(config)
-
-TcpClient -> TcpClient : Create Netty Bootstrap
-
-TcpClient --> DemoClient
-deactivate TcpClient
-deactivate DemoClient
-
 User -> DemoClient : connect()
 activate DemoClient
 
-DemoClient -> TcpClient : connect()
-activate TcpClient
+DemoClient -> CoreClient : connect(host, port)
+activate CoreClient
 
-TcpClient -> CB : isCallPermitted()
+CoreClient -> CB : isCallPermitted()
 activate CB
-CB --> TcpClient : true (CLOSED state)
+CB --> CoreClient : true (CLOSED state)
 deactivate CB
 
-TcpClient -> TcpClient : bootstrap.connect(host, port)
-
-alt Connection Success
-    TcpClient -> CB : recordSuccess()
-    TcpClient -> HC : start()\n(Schedule heartbeat)
-    TcpClient --> DemoClient : Connected
-else Connection Failure
-    TcpClient -> CB : recordFailure()
-    TcpClient -> TcpClient : Retry with backoff
+alt TCP Client
+    CoreClient -> CoreClient : Create Netty Bootstrap\nConnect to server
+else HTTP/HTTPS Client
+    CoreClient -> CoreClient : Initialize HttpClient\nSetup SSL if HTTPS
 end
 
-deactivate TcpClient
+CoreClient -> HC : start()
+note right: Schedule heartbeat\nevery 30 seconds
+
+CoreClient --> DemoClient : Connected
+deactivate CoreClient
 deactivate DemoClient
 
-== Message Send/Receive ==
+== TCP Message Flow (Fixed-Length Binary) ==
 
-User -> DemoClient : balanceInquiry("1234567890")
+User -> DemoClient : balanceInquiry("1234567890123456789")
 activate DemoClient
 
-DemoClient -> DemoClient : Create Message\nmessageCode="BAL1"
+DemoClient -> DemoClient : Create Message\nmessageCode = "BAL1"
 
-DemoClient -> TcpClient : send(message, timeout)
-activate TcpClient
+DemoClient -> CoreClient : send(message, timeout)
+activate CoreClient
 
-TcpClient -> LayoutMgr : getLayout("BAL1")
+CoreClient -> LayoutMgr : getLayout("BAL1")
 activate LayoutMgr
-LayoutMgr --> TcpClient : MessageLayout
+LayoutMgr --> CoreClient : MessageLayout
 deactivate LayoutMgr
 
-TcpClient -> Layout : encode(message, charset)
+CoreClient -> Layout : encode(message, charset)
 activate Layout
 
-loop Each field in layout
-    Layout -> Layout : Encode field\n(type, length, alignment)
-end
-
-Layout --> TcpClient : byte[] encoded (70 bytes)
-deactivate Layout
-
-TcpClient -> Protocol : prependLengthField(data)
-note right
-  Binary Big-Endian
-  4 bytes: [0x00, 0x00, 0x00, 0x46]
+note right of Layout
+  **TCP Binary Encoding:**
+  msgCode  : "BAL1"     (4 bytes)
+  orgCode  : "000"      (3 bytes)
+  txDate   : "20240117" (8 bytes)
+  txTime   : "143052"   (6 bytes)
+  seqNo    : "0000000001" (10 bytes)
+  accountNo: "1234567..." (20 bytes)
+  Total: 70 bytes
 end note
 
-TcpClient -> Logger : logSend(message, layout, data)
-activate Logger
-Logger -> Logger : Apply masking\n(accountNo: ****)
-Logger --> TcpClient
-deactivate Logger
-
-TcpClient -> TcpClient : Create CompletableFuture\nStore in pendingRequests
-
-TcpClient ->> TcpServer : channel.writeAndFlush()\n[TCP Packet]
-activate TcpServer
-
-TcpClient -> TcpClient : future.get(timeout)\n(Blocking wait)
-
-' Server Side Processing
-TcpServer -> TcpServer : LengthFieldBasedFrameDecoder\nStrip length field
-
-TcpServer -> TcpServer : Extract messageCode: "BAL1"
-
-TcpServer -> LayoutMgr : getLayout("BAL1")
-activate LayoutMgr
-LayoutMgr --> TcpServer : MessageLayout
-deactivate LayoutMgr
-
-TcpServer -> Layout : decode(bodyData, charset)
-activate Layout
-Layout --> TcpServer : Message request
+Layout --> CoreClient : byte[70]
 deactivate Layout
 
-TcpServer -> Logger : logReceive(request, layout, data)
+CoreClient -> Protocol : prependLengthField(data)
+note right: [0x00, 0x00, 0x00, 0x46] + [payload]
 
-TcpServer -> BizReg : getBiz("BAL1")
-activate BizReg
-BizReg --> TcpServer : BalanceInquiryBiz
-deactivate BizReg
+CoreClient ->> CoreServer : TCP Socket write\n[Length: 4B] + [Payload: 70B]
+activate CoreServer
 
-TcpServer -> Biz : execute(request, context)
+CoreClient -> CoreClient : pendingRequests.put(seqNo, future)\nfuture.get(timeout)
+
+CoreServer -> CoreServer : LengthFieldBasedFrameDecoder\nExtract payload
+
+CoreServer -> LayoutMgr : getLayout("BAL1")
+CoreServer -> Layout : decode(payload, charset)
+activate Layout
+Layout --> CoreServer : Message request
+deactivate Layout
+
+CoreServer -> BizReg : getBiz("BAL1")
+BizReg --> CoreServer : BalanceInquiryBiz
+
+CoreServer -> Biz : execute(request, context)
 activate Biz
 
-Biz -> Biz : accountNo = request.getString("accountNo")
-Biz -> Biz : balance = repository.getBalance(accountNo)
-Biz -> Biz : Build response Message
+Biz -> Biz : accountNo = request.getString("accountNo")\nbalance = repository.getBalance(accountNo)
 
-Biz --> TcpServer : Message response\n{messageCode: "BAL2", ...}
+Biz --> CoreServer : Message response\n{messageCode: "BAL2", rspCode: "0000", balance: 1000000}
 deactivate Biz
 
-TcpServer -> LayoutMgr : getLayout("BAL2")
-TcpServer -> Layout : encode(response, charset)
-activate Layout
-Layout --> TcpServer : byte[] (85 bytes)
-deactivate Layout
+CoreServer -> Layout : encode(response, charset)
+Layout --> CoreServer : byte[85]
 
-TcpServer -> Protocol : prependLengthField(responseData)
-TcpServer -> Logger : logSend(response, layout, data)
+CoreServer ->> CoreClient : TCP Socket write\n[Length: 4B] + [Payload: 85B]
+deactivate CoreServer
 
-TcpServer ->> TcpClient : ctx.writeAndFlush()\n[TCP Response]
-deactivate TcpServer
+CoreClient -> Layout : decode(payload, charset)
+Layout --> CoreClient : Message response
 
-' Client receives response
-TcpClient -> TcpClient : channelRead0() triggered
+CoreClient -> CoreClient : future.complete(response)
 
-TcpClient -> LayoutMgr : getLayout("BAL2")
-TcpClient -> Layout : decode(bodyData, charset)
-activate Layout
-Layout --> TcpClient : Message response
-deactivate Layout
+CoreClient --> DemoClient : Message response
+deactivate CoreClient
 
-TcpClient -> Logger : logReceive(response, layout, data)
-
-TcpClient -> TcpClient : future.complete(response)\nUnblock waiting thread
-
-TcpClient --> DemoClient : Message response
-deactivate TcpClient
-
-DemoClient --> User : Message response\n{rspCode: "0000", balance: 1000000}
+DemoClient --> User : {rspCode: "0000", balance: 1000000}
 deactivate DemoClient
 
-== Health Check (Keep-Alive) ==
+== HTTP/HTTPS Message Flow (JSON) ==
 
-HC ->> TcpClient : scheduleAtFixedRate()
-activate HC
+User -> DemoClient : balanceInquiry("1234567890123456789")
+activate DemoClient
 
-loop Every healthCheckInterval
-    HC -> TcpClient : sendHeartbeat()
-    TcpClient ->> TcpServer : PING message
-    TcpServer ->> TcpClient : PONG response
+DemoClient -> DemoClient : Create Message\nmessageCode = "BAL1"
 
-    alt No response in timeout
-        HC -> TcpClient : markConnectionFailed()
-        TcpClient -> TcpClient : Attempt reconnect
-    end
-end
-deactivate HC
+DemoClient -> CoreClient : send(message)
+activate CoreClient
 
-== Circuit Breaker State Transition ==
+CoreClient -> CoreClient : Convert to JSON
 
-note over CB
-  States:
-  - CLOSED: Normal operation
-  - OPEN: Block all requests
-  - HALF_OPEN: Allow test request
+note right of CoreClient
+  **HTTP JSON Request:**
+  POST /api/balance HTTP/1.1
+  Content-Type: application/json
+
+  {
+    "messageCode": "BAL1",
+    "fields": {
+      "accountNo": "1234567890123456789"
+    }
+  }
 end note
 
-User -> TcpClient : send() [Multiple failures]
-activate TcpClient
+alt HTTPS
+    CoreClient -> CoreClient : SSL/TLS Handshake\n(Self-signed cert trusted)
+end
 
-loop Consecutive failures >= threshold
-    TcpClient -> CB : recordFailure()
+CoreClient ->> CoreServer : HTTP POST /api/balance
+activate CoreServer
+
+CoreServer -> CoreServer : Parse JSON request\nExtract messageCode
+
+CoreServer -> LayoutMgr : getLayout("BAL1")
+CoreServer -> Layout : fromJson(jsonFields)
+Layout --> CoreServer : Message request
+
+CoreServer -> BizReg : getBiz("BAL1")
+BizReg --> CoreServer : BalanceInquiryBiz
+
+CoreServer -> Biz : execute(request, context)
+activate Biz
+Biz --> CoreServer : Message response
+deactivate Biz
+
+CoreServer -> Layout : toJson(response)
+Layout --> CoreServer : JSON fields
+
+note right of CoreServer
+  **HTTP JSON Response:**
+  HTTP/1.1 200 OK
+  Content-Type: application/json
+
+  {
+    "messageCode": "BAL2",
+    "fields": {
+      "rspCode": "0000",
+      "accountNo": "1234567...",
+      "balance": 1000000
+    }
+  }
+end note
+
+CoreServer ->> CoreClient : HTTP 200 OK + JSON
+deactivate CoreServer
+
+CoreClient -> CoreClient : Parse JSON response\nConvert to Message
+
+CoreClient --> DemoClient : Message response
+deactivate CoreClient
+
+DemoClient --> User : {rspCode: "0000", balance: 1000000}
+deactivate DemoClient
+
+== Circuit Breaker Protection ==
+
+note over CB
+  **Circuit Breaker States:**
+  CLOSED -> Normal operation
+  OPEN -> Block all requests
+  HALF_OPEN -> Test recovery
+end note
+
+User -> CoreClient : send() [Failure]
+CoreClient -> CB : recordFailure()
+
+loop Consecutive failures >= 5
+    CoreClient -> CB : recordFailure()
 end
 
 CB -> CB : Transition to OPEN
-note right: Block requests for\nwaitDurationInOpenState
+note right: Block for 60 seconds
 
-TcpClient --> User : Exception: Circuit is OPEN
-deactivate TcpClient
+User -> CoreClient : send()
+CB --> User : CircuitOpenException
 
-... After wait duration ...
+... After 60 seconds ...
 
 CB -> CB : Transition to HALF_OPEN
-note right: Allow single test request
+User -> CoreClient : send() [Test request]
 
-User -> TcpClient : send() [Test request]
-activate TcpClient
-
-alt Test request succeeds
-    TcpClient -> CB : recordSuccess()
+alt Success
     CB -> CB : Transition to CLOSED
-else Test request fails
-    TcpClient -> CB : recordFailure()
-    CB -> CB : Transition to OPEN
+else Failure
+    CB -> CB : Back to OPEN
 end
-
-deactivate TcpClient
 
 @enduml

@@ -1,193 +1,197 @@
 @startuml MCI Framework Message Flow
 
-title Springware MCI Framework - Message Flow Sequence Diagram
+title Springware MCI Framework - Multi-Protocol Message Flow
 
 skinparam backgroundColor #FEFEFE
 skinparam sequenceMessageAlign center
 skinparam responseMessageBelowArrow true
 
-' Participants
-box "Client Application" #LightBlue
-    participant "Application" as App
-    participant "TcpDemoClient" as DemoClient
-    participant "TcpClient" as Client
+' Participants - Banking
+box "Banking Client" #E8FFE8
+    participant "Application" as BankApp
+    participant "BankTcpClient\nBankHttpClient" as BankClient
 end box
 
-box "Client - Encoding/Decoding" #LightGreen
-    participant "LayoutManager" as ClientLayout
-    participant "MessageLayout" as ClientMsgLayout
+' Participants - Card
+box "Card Client" #FFF0E8
+    participant "Application" as CardApp
+    participant "CardTcpClient\nCardHttpClient" as CardClient
+end box
+
+box "Codec Layer" #LightGreen
+    participant "LayoutManager" as LayoutMgr
+    participant "MessageLayout" as MsgLayout
 end box
 
 box "Network" #LightGray
-    participant "Netty Channel" as Channel
+    participant "TCP/HTTP/HTTPS" as Network
 end box
 
-box "Server - Encoding/Decoding" #LightYellow
-    participant "TcpServer\n(TcpServerHandler)" as Server
-    participant "LayoutManager" as ServerLayout
-    participant "MessageLayout" as ServerMsgLayout
+box "Banking Server" #E8FFE8
+    participant "BankTcpServer\nBankHttpServer" as BankServer
+    participant "BankBizRegistry" as BankBizReg
+    participant "BalanceInquiryBiz\nTransferBiz" as BankBiz
 end box
 
-box "Server Business Logic" #LightPink
-    participant "BizRegistry" as BizReg
-    participant "Biz\n(e.g. BalanceInquiryBiz)" as Biz
+box "Card Server" #FFF0E8
+    participant "CardTcpServer\nCardHttpServer" as CardServer
+    participant "CardBizRegistry" as CardBizReg
+    participant "CardListBiz\nCardUsageHistoryBiz" as CardBiz
 end box
 
-== Request Phase ==
+== Banking: Balance Inquiry (BAL1 -> BAL2) ==
 
-App -> DemoClient : balanceInquiry(accountNo)
-activate DemoClient
+BankApp -> BankClient : balanceInquiry(accountNo)
+activate BankClient
 
-DemoClient -> DemoClient : Create Message\n{messageCode: "BAL1"\n fields: {...}}
+BankClient -> BankClient : Create Message\n{messageCode: "BAL1"}
 
-DemoClient -> Client : send(message)
-activate Client
+BankClient -> LayoutMgr : encode(message)
+activate LayoutMgr
 
-Client -> ClientLayout : encode(message, charset)
-activate ClientLayout
+LayoutMgr -> MsgLayout : getLayout("BAL1")
+LayoutMgr -> MsgLayout : encode(message)
+activate MsgLayout
 
-ClientLayout -> ClientMsgLayout : getLayout("BAL1")
-ClientLayout -> ClientMsgLayout : encode(message)
-activate ClientMsgLayout
-
-note right of ClientMsgLayout
-  Fixed-width encoding:
-  - msgCode (4 bytes)
-  - orgCode (3 bytes)
-  - txDate (8 bytes)
-  - txTime (6 bytes)
-  - seqNo (10 bytes)
-  - accountNo (20 bytes)
-  ...
+note right of MsgLayout
+  TCP: Fixed-width binary
+  HTTP: JSON format
 end note
 
-ClientMsgLayout --> ClientLayout : byte[] (70 bytes)
-deactivate ClientMsgLayout
+MsgLayout --> LayoutMgr : encoded data
+deactivate MsgLayout
 
-ClientLayout --> Client : byte[] encoded data
-deactivate ClientLayout
+LayoutMgr --> BankClient : byte[] / JSON
+deactivate LayoutMgr
 
-Client -> Client : prependLengthField(data)\n[4-byte binary big-endian]
+BankClient -> Network : Send request
+activate Network
 
-Client -> Client : Store in pendingRequests Map\n{messageId → CompletableFuture}
+Network -> BankServer : Receive request
+deactivate Network
+activate BankServer
 
-Client -> Channel : writeAndFlush(ByteBuf)
-activate Channel
+BankServer -> LayoutMgr : decode(data)
+LayoutMgr --> BankServer : Message request
 
-note over Channel
-  TCP Transmission
-  [LENGTH: 4 bytes] + [PAYLOAD: 70 bytes]
+BankServer -> BankBizReg : getBiz("BAL1")
+activate BankBizReg
+BankBizReg --> BankServer : BalanceInquiryBiz
+deactivate BankBizReg
+
+BankServer -> BankBiz : execute(request, context)
+activate BankBiz
+
+note right of BankBiz
+  1. Get accountNo
+  2. Query AccountRepository
+  3. Build response (BAL2)
 end note
 
-== Server Processing ==
+BankBiz --> BankServer : Message response\n{messageCode: "BAL2"\n rspCode: "0000"\n balance: 1000000}
+deactivate BankBiz
 
-Channel -> Server : channelRead0(ctx, ByteBuf)
-deactivate Channel
-activate Server
+BankServer -> LayoutMgr : encode(response)
+LayoutMgr --> BankServer : encoded response
 
-Server -> Server : Extract raw bytes\n(LengthFieldBasedFrameDecoder\nalready stripped length)
+BankServer -> Network : Send response
+activate Network
+deactivate BankServer
 
-Server -> Server : Extract messageCode\nfrom first 4 bytes: "BAL1"
+Network -> BankClient : Receive response
+deactivate Network
 
-Server -> ServerLayout : getLayout("BAL1")
-activate ServerLayout
+BankClient -> LayoutMgr : decode(data)
+LayoutMgr --> BankClient : Message response
 
-ServerLayout -> ServerMsgLayout : decode(bodyData, charset)
-activate ServerMsgLayout
+BankClient --> BankApp : {rspCode: "0000", balance: 1000000}
+deactivate BankClient
 
-note right of ServerMsgLayout
-  Parse fields by layout:
-  - msgCode = "BAL1"
-  - orgCode = "000"
-  - txDate = "20240117"
-  - accountNo = "123..."
+== Card: Card List Inquiry (CRD1 -> CRD2) ==
+
+CardApp -> CardClient : cardListInquiry(customerId)
+activate CardClient
+
+CardClient -> CardClient : Create Message\n{messageCode: "CRD1"}
+
+CardClient -> LayoutMgr : encode(message)
+activate LayoutMgr
+
+LayoutMgr -> MsgLayout : getLayout("CRD1")
+LayoutMgr -> MsgLayout : encode(message)
+activate MsgLayout
+
+note right of MsgLayout
+  Supports REPEATING fields
+  for card list response
 end note
 
-ServerMsgLayout --> ServerLayout : Message request
-deactivate ServerMsgLayout
+MsgLayout --> LayoutMgr : encoded data
+deactivate MsgLayout
 
-ServerLayout --> Server : Message request
-deactivate ServerLayout
+LayoutMgr --> CardClient : byte[] / JSON
+deactivate LayoutMgr
 
-Server -> Server : Create MessageContext\n{channel, transportType, remoteAddress}
+CardClient -> Network : Send request
+activate Network
 
-Server -> BizReg : getBiz("BAL1")
-activate BizReg
+Network -> CardServer : Receive request
+deactivate Network
+activate CardServer
 
-BizReg --> Server : BalanceInquiryBiz
-deactivate BizReg
+CardServer -> LayoutMgr : decode(data)
+LayoutMgr --> CardServer : Message request
 
-Server -> Biz : execute(request, context)
-activate Biz
+CardServer -> CardBizReg : getBiz("CRD1")
+activate CardBizReg
+CardBizReg --> CardServer : CardListBiz
+deactivate CardBizReg
 
-note right of Biz
-  Business Logic:
-  1. Extract accountNo
-  2. Query balance from repository
-  3. Build response with rspCode, balance
+CardServer -> CardBiz : execute(request, context)
+activate CardBiz
+
+note right of CardBiz
+  1. Get customerId
+  2. Query CardRepository
+  3. Build response with card list (CRD2)
 end note
 
-Biz -> Biz : Process business logic
+CardBiz --> CardServer : Message response\n{messageCode: "CRD2"\n rspCode: "0000"\n cardCount: 3\n cards: [...]}
+deactivate CardBiz
 
-Biz --> Server : Message response\n{messageCode: "BAL2"\n rspCode: "0000"\n balance: 1000000}
-deactivate Biz
+CardServer -> LayoutMgr : encode(response)
+LayoutMgr --> CardServer : encoded response
 
-== Response Phase ==
+CardServer -> Network : Send response
+activate Network
+deactivate CardServer
 
-Server -> ServerLayout : getLayout("BAL2")
-activate ServerLayout
+Network -> CardClient : Receive response
+deactivate Network
 
-ServerLayout -> ServerMsgLayout : encode(response)
-activate ServerMsgLayout
+CardClient -> LayoutMgr : decode(data)
+LayoutMgr --> CardClient : Message response
 
-ServerMsgLayout --> ServerLayout : byte[] (85 bytes)
-deactivate ServerMsgLayout
+CardClient --> CardApp : {rspCode: "0000", cards: [...]}
+deactivate CardClient
 
-ServerLayout --> Server : byte[] encoded response
-deactivate ServerLayout
+== Protocol Comparison ==
 
-Server -> Server : prependLengthField(responseData)
+note over Network
+  **TCP (Port 9001/9011)**
+  - Fixed-length binary encoding
+  - 4-byte length prefix (Big-Endian)
+  - Persistent connection
 
-Server -> Channel : writeAndFlush(ByteBuf)
-activate Channel
-deactivate Server
+  **HTTP (Port 9003/9013)**
+  - JSON encoding
+  - RESTful endpoints
+  - Connection per request
 
-note over Channel
-  TCP Transmission (Response)
-  [LENGTH: 4 bytes] + [PAYLOAD: 85 bytes]
-end note
-
-Channel -> Client : channelRead0(ctx, ByteBuf)
-deactivate Channel
-activate Client
-
-Client -> Client : Extract messageCode: "BAL2"
-
-Client -> ClientLayout : getLayout("BAL2")
-activate ClientLayout
-
-ClientLayout -> ClientMsgLayout : decode(bodyData, charset)
-activate ClientMsgLayout
-
-ClientMsgLayout --> ClientLayout : Message response
-deactivate ClientMsgLayout
-
-ClientLayout --> Client : Message response
-deactivate ClientLayout
-
-Client -> Client : Match to pendingRequests\nfuture.complete(response)
-
-Client --> DemoClient : Message response
-deactivate Client
-
-DemoClient --> App : Message response\n{rspCode: "0000"\n balance: 1000000}
-deactivate DemoClient
-
-note over App
-  Application processes response:
-  if ("0000".equals(rspCode)) {
-    balance = response.getLong("balance")
-  }
+  **HTTPS (Port 9443/9444)**
+  - JSON encoding with TLS
+  - Self-signed certificate support
+  - Encrypted channel
 end note
 
 @enduml

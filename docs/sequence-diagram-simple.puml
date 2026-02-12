@@ -1,55 +1,96 @@
 @startuml MCI Framework Simple Overview
 
-title Springware MCI Framework - Simple Message Flow
+title Springware MCI Framework - Simple Overview
 
 skinparam backgroundColor #FEFEFE
 skinparam handwritten false
 skinparam defaultFontSize 14
 
 participant "Client App" as App #LightBlue
-participant "TcpClient" as Client #LightGreen
-participant "TCP Network" as Net #LightGray
-participant "TcpServer" as Server #LightYellow
+participant "Client\n(TCP/HTTP/HTTPS)" as Client #LightGreen
+participant "Network" as Net #LightGray
+participant "Server\n(TCP/HTTP/HTTPS)" as Server #LightYellow
 participant "Biz Handler" as Biz #LightPink
 
-== 1. 요청 전송 (Request) ==
+== Banking: Balance Inquiry ==
 
 App -> Client : balanceInquiry(accountNo)
 note right of App
-  Message 생성
+  Message:
   messageCode: "BAL1"
+  accountNo: "123..."
 end note
 
-Client -> Client : encode(message)\nMessageLayout 사용
+Client -> Client : encode(message)
+note right: TCP: Binary\nHTTP: JSON
 
-Client -> Net : TCP 전송\n[Length 4B] + [Payload 70B]
+Client -> Net : Send Request
+Net -> Server : Receive
 
-Net -> Server : 패킷 수신
+Server -> Server : decode(data)
+Server -> Biz : execute(request)
 
-Server -> Server : decode(bytes)\nMessageLayout 사용
-
-== 2. 비즈니스 처리 (Processing) ==
-
-Server -> Biz : execute(request, context)
 note right of Biz
-  BalanceInquiryBiz
-  - 계좌번호 추출
-  - 잔액 조회
-  - 응답 생성
+  BalanceInquiryBiz:
+  - Extract accountNo
+  - Query repository
+  - Build response
 end note
 
-Biz --> Server : Message response\nmessageCode: "BAL2"
-
-== 3. 응답 전송 (Response) ==
-
+Biz --> Server : response (BAL2)
 Server -> Server : encode(response)
 
-Server -> Net : TCP 전송\n[Length 4B] + [Payload 85B]
+Server -> Net : Send Response
+Net -> Client : Receive
 
-Net -> Client : 패킷 수신
+Client -> Client : decode(data)
+Client --> App : {rspCode: "0000"\n balance: 1000000}
 
-Client -> Client : decode(bytes)
+== Card: Card List Inquiry ==
 
-Client --> App : Message response\nrspCode: "0000"\nbalance: 1000000
+App -> Client : cardListInquiry(customerId)
+note right of App
+  Message:
+  messageCode: "CRD1"
+  customerId: "CUST001"
+end note
+
+Client -> Client : encode(message)
+
+Client -> Net : Send Request
+Net -> Server : Receive
+
+Server -> Server : decode(data)
+Server -> Biz : execute(request)
+
+note right of Biz
+  CardListBiz:
+  - Extract customerId
+  - Query CardRepository
+  - Build card list response
+end note
+
+Biz --> Server : response (CRD2)
+Server -> Server : encode(response)
+
+Server -> Net : Send Response
+Net -> Client : Receive
+
+Client -> Client : decode(data)
+Client --> App : {rspCode: "0000"\n cards: [...]}
+
+== Port Configuration ==
+
+note over Net
+  **Banking Domain**
+  TCP:   9001
+  HTTP:  9003
+  HTTPS: 9443
+
+  **Card Domain**
+  TCP:   9011
+  HTTP:  9013
+  HTTPS: 9444
+end note
 
 @enduml

@@ -4,27 +4,92 @@ title Springware MCI Framework - Component Architecture
 
 skinparam backgroundColor #FEFEFE
 skinparam componentStyle uml2
-skinparam defaultFontSize 12
+skinparam defaultFontSize 11
+skinparam packageStyle rectangle
 
 package "demo-mci" #E8F4FD {
-    [TcpDemoClient] as DemoClient
-    [TcpDemoServer] as DemoServer
 
-    package "biz" {
-        [BalanceInquiryBiz]
-        [TransferBiz]
-        [AccountInquiryBiz]
-        [TransactionHistoryBiz]
-        [EchoBiz]
-        [HeartbeatBiz]
+    package "common" #F0F8FF {
+        [DemoConstants] as Constants
+        [DemoMessageCodes] as MsgCodes
+        [DemoLayoutRegistry] as LayoutReg
     }
 
-    package "layouts" {
-        [BAL1.yaml] as BAL1
-        [BAL2.yaml] as BAL2
-        [TRF1.yaml] as TRF1
-        [TRF2.yaml] as TRF2
+    package "banking" #E8FFE8 {
+        package "banking/biz" {
+            [BalanceInquiryBiz]
+            [TransferBiz]
+            [TransactionHistoryBiz]
+            [AccountInquiryBiz]
+            [EchoBiz]
+            [HeartbeatBiz]
+            [BankBizRegistry]
+        }
+
+        package "banking/entity" {
+            [Account]
+            [AccountRepository]
+            [TransactionRepository]
+        }
+
+        package "banking/tcp" {
+            [BankTcpServer]
+            [BankTcpClient]
+        }
+
+        package "banking/http" {
+            [BankHttpServer]
+            [BankHttpClient]
+        }
+
+        package "banking/https" {
+            [BankHttpsServer]
+            [BankHttpsClient]
+        }
     }
+
+    package "card" #FFF0E8 {
+        package "card/biz" {
+            [CardListBiz]
+            [CardUsageHistoryBiz]
+            [CardBizRegistry]
+        }
+
+        package "card/entity" {
+            [Card]
+            [CardRepository]
+            [CardUsageHistory]
+            [CardUsageHistoryRepository]
+        }
+
+        package "card/tcp" {
+            [CardTcpServer]
+            [CardTcpClient]
+        }
+
+        package "card/http" {
+            [CardHttpServer]
+            [CardHttpClient]
+        }
+
+        package "card/https" {
+            [CardHttpsServer]
+            [CardHttpsClient]
+        }
+    }
+
+    package "layouts (YAML)" #FFFACD {
+        [BAL1/BAL2] as BankingLayouts
+        [TRF1/TRF2] as TransferLayouts
+        [TXH1/TXH2] as TxHistoryLayouts
+        [ACT1/ACT2] as AccountLayouts
+        [ECH1/ECH2] as EchoLayouts
+        [HBT1/HBT2] as HeartbeatLayouts
+        [CRD1/CRD2] as CardLayouts
+        [CUH1/CUH2] as CardHistoryLayouts
+    }
+
+    [DemoApplication] as MainApp
 }
 
 package "springware-mci-core" #E8F8E8 {
@@ -33,29 +98,29 @@ package "springware-mci-core" #E8F8E8 {
         interface "MciClient" as IMciClient
         [AbstractMciClient]
         [TcpClient]
+        [HttpClient]
         [CircuitBreaker]
         [HealthChecker]
-        [ConnectionPool]
 
         IMciClient <|.. AbstractMciClient
         AbstractMciClient <|-- TcpClient
+        AbstractMciClient <|-- HttpClient
         TcpClient --> CircuitBreaker
         TcpClient --> HealthChecker
-        TcpClient --> ConnectionPool
     }
 
     package "server" {
         interface "MciServer" as IMciServer
         [AbstractMciServer]
         [TcpServer]
-        [MessageHandler]
-        [MessageContext]
+        [HttpServer]
         interface "Biz" as IBiz
         [BizRegistry]
+        [MessageContext]
 
         IMciServer <|.. AbstractMciServer
         AbstractMciServer <|-- TcpServer
-        TcpServer --> MessageHandler
+        AbstractMciServer <|-- HttpServer
         BizRegistry --> IBiz
     }
 
@@ -76,53 +141,70 @@ package "springware-mci-core" #E8F8E8 {
         package "protocol" {
             [ProtocolConfig]
             [DefaultMessageCodec]
-            [LengthFieldType]
-        }
-
-        package "logging" {
-            [MessageLogger]
-            [AsyncMessageLogger]
-            [DefaultMessageLogger]
         }
     }
 }
 
-package "springware-common" #FFF8E8 {
-    [StringUtils]
-    [ByteUtils]
-    [DateTimeUtils]
-    [MciException]
-}
+' Main Application relationships
+MainApp --> BankTcpServer
+MainApp --> BankHttpServer
+MainApp --> BankHttpsServer
+MainApp --> CardTcpServer
+MainApp --> CardHttpServer
+MainApp --> CardHttpsServer
 
-' Relationships
-DemoClient --> TcpClient
-DemoServer --> TcpServer
+' Banking relationships
+BankTcpServer --> TcpServer
+BankTcpClient --> TcpClient
+BankHttpServer --> HttpServer
+BankHttpClient --> HttpClient
+BankHttpsServer --> HttpServer
 
-DemoServer --> BizRegistry
+BankTcpServer --> BankBizRegistry
+BankHttpServer --> BankBizRegistry
+BankHttpsServer --> BankBizRegistry
+
 BalanceInquiryBiz ..|> IBiz
 TransferBiz ..|> IBiz
-AccountInquiryBiz ..|> IBiz
 TransactionHistoryBiz ..|> IBiz
+AccountInquiryBiz ..|> IBiz
 EchoBiz ..|> IBiz
 HeartbeatBiz ..|> IBiz
 
-TcpClient --> LayoutManager
-TcpServer --> LayoutManager
-LayoutManager --> MessageLayout
-MessageLayout --> FieldDefinition
+BalanceInquiryBiz --> AccountRepository
+TransferBiz --> AccountRepository
+TransactionHistoryBiz --> TransactionRepository
+AccountInquiryBiz --> AccountRepository
+
+' Card relationships
+CardTcpServer --> TcpServer
+CardTcpClient --> TcpClient
+CardHttpServer --> HttpServer
+CardHttpClient --> HttpClient
+CardHttpsServer --> HttpServer
+
+CardTcpServer --> CardBizRegistry
+CardHttpServer --> CardBizRegistry
+CardHttpsServer --> CardBizRegistry
+
+CardListBiz ..|> IBiz
+CardUsageHistoryBiz ..|> IBiz
+
+CardListBiz --> CardRepository
+CardUsageHistoryBiz --> CardUsageHistoryRepository
+
+' Layout relationships
+LayoutReg --> YamlLayoutLoader
 YamlLayoutLoader --> MessageLayout
+LayoutManager --> MessageLayout
+TcpServer --> LayoutManager
+HttpServer --> LayoutManager
+TcpClient --> LayoutManager
+HttpClient --> LayoutManager
 
-TcpClient --> ProtocolConfig
-TcpServer --> ProtocolConfig
-
-TcpClient --> MessageLogger
-TcpServer --> MessageLogger
-
-MessageLayout --> Message
-
-BAL1 ..> YamlLayoutLoader : load
-BAL2 ..> YamlLayoutLoader : load
-TRF1 ..> YamlLayoutLoader : load
-TRF2 ..> YamlLayoutLoader : load
+BankingLayouts ..> YamlLayoutLoader : load
+TransferLayouts ..> YamlLayoutLoader : load
+CardLayouts ..> YamlLayoutLoader : load
+CardHistoryLayouts ..> YamlLayoutLoader : load
 
 @enduml
