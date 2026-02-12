@@ -1,0 +1,270 @@
+@startuml MCI Framework Detailed Flow
+
+title Springware MCI Framework - Detailed Component Interaction
+
+skinparam backgroundColor #FEFEFE
+skinparam sequenceMessageAlign center
+
+' Participants
+actor "User/Application" as User
+
+box "Demo Layer" #E8F4FD
+    participant "TcpDemoClient" as DemoClient
+    participant "TcpDemoServer" as DemoServer
+end box
+
+box "Client Core" #E8F8E8
+    participant "AbstractMciClient" as AbstractClient
+    participant "TcpClient" as TcpClient
+    participant "CircuitBreaker" as CB
+    participant "HealthChecker" as HC
+end box
+
+box "Common Core" #FFF8E8
+    participant "LayoutManager" as LayoutMgr
+    participant "MessageLayout" as Layout
+    participant "ProtocolConfig" as Protocol
+    participant "MessageLogger" as Logger
+end box
+
+box "Server Core" #F8E8F8
+    participant "AbstractMciServer" as AbstractServer
+    participant "TcpServer" as TcpServer
+    participant "BizRegistry" as BizReg
+    participant "Biz" as Biz
+end box
+
+== Initialization ==
+
+User -> DemoServer : start()
+activate DemoServer
+
+DemoServer -> AbstractServer : super.start()
+activate AbstractServer
+
+AbstractServer -> LayoutMgr : registerLayout(BAL1, BAL2, TRF1...)
+note right: Load layouts from YAML files
+
+AbstractServer -> BizReg : register("BAL1", BalanceInquiryBiz)
+AbstractServer -> BizReg : register("TRF1", TransferBiz)
+AbstractServer -> BizReg : register("ECHO", EchoBiz)
+
+AbstractServer --> DemoServer
+deactivate AbstractServer
+
+DemoServer -> TcpServer : new TcpServer(config, protocol)
+activate TcpServer
+
+TcpServer -> TcpServer : Create Netty ServerBootstrap\nBind to port
+
+TcpServer --> DemoServer : Server started
+deactivate TcpServer
+deactivate DemoServer
+
+== Client Connection ==
+
+User -> DemoClient : new TcpDemoClient()
+activate DemoClient
+
+DemoClient -> TcpClient : new TcpClient(config)
+activate TcpClient
+
+TcpClient -> CB : new CircuitBreaker(config)
+TcpClient -> HC : new HealthChecker(config)
+
+TcpClient -> TcpClient : Create Netty Bootstrap
+
+TcpClient --> DemoClient
+deactivate TcpClient
+deactivate DemoClient
+
+User -> DemoClient : connect()
+activate DemoClient
+
+DemoClient -> TcpClient : connect()
+activate TcpClient
+
+TcpClient -> CB : isCallPermitted()
+activate CB
+CB --> TcpClient : true (CLOSED state)
+deactivate CB
+
+TcpClient -> TcpClient : bootstrap.connect(host, port)
+
+alt Connection Success
+    TcpClient -> CB : recordSuccess()
+    TcpClient -> HC : start()\n(Schedule heartbeat)
+    TcpClient --> DemoClient : Connected
+else Connection Failure
+    TcpClient -> CB : recordFailure()
+    TcpClient -> TcpClient : Retry with backoff
+end
+
+deactivate TcpClient
+deactivate DemoClient
+
+== Message Send/Receive ==
+
+User -> DemoClient : balanceInquiry("1234567890")
+activate DemoClient
+
+DemoClient -> DemoClient : Create Message\nmessageCode="BAL1"
+
+DemoClient -> TcpClient : send(message, timeout)
+activate TcpClient
+
+TcpClient -> LayoutMgr : getLayout("BAL1")
+activate LayoutMgr
+LayoutMgr --> TcpClient : MessageLayout
+deactivate LayoutMgr
+
+TcpClient -> Layout : encode(message, charset)
+activate Layout
+
+loop Each field in layout
+    Layout -> Layout : Encode field\n(type, length, alignment)
+end
+
+Layout --> TcpClient : byte[] encoded (70 bytes)
+deactivate Layout
+
+TcpClient -> Protocol : prependLengthField(data)
+note right
+  Binary Big-Endian
+  4 bytes: [0x00, 0x00, 0x00, 0x46]
+end note
+
+TcpClient -> Logger : logSend(message, layout, data)
+activate Logger
+Logger -> Logger : Apply masking\n(accountNo: ****)
+Logger --> TcpClient
+deactivate Logger
+
+TcpClient -> TcpClient : Create CompletableFuture\nStore in pendingRequests
+
+TcpClient ->> TcpServer : channel.writeAndFlush()\n[TCP Packet]
+activate TcpServer
+
+TcpClient -> TcpClient : future.get(timeout)\n(Blocking wait)
+
+' Server Side Processing
+TcpServer -> TcpServer : LengthFieldBasedFrameDecoder\nStrip length field
+
+TcpServer -> TcpServer : Extract messageCode: "BAL1"
+
+TcpServer -> LayoutMgr : getLayout("BAL1")
+activate LayoutMgr
+LayoutMgr --> TcpServer : MessageLayout
+deactivate LayoutMgr
+
+TcpServer -> Layout : decode(bodyData, charset)
+activate Layout
+Layout --> TcpServer : Message request
+deactivate Layout
+
+TcpServer -> Logger : logReceive(request, layout, data)
+
+TcpServer -> BizReg : getBiz("BAL1")
+activate BizReg
+BizReg --> TcpServer : BalanceInquiryBiz
+deactivate BizReg
+
+TcpServer -> Biz : execute(request, context)
+activate Biz
+
+Biz -> Biz : accountNo = request.getString("accountNo")
+Biz -> Biz : balance = repository.getBalance(accountNo)
+Biz -> Biz : Build response Message
+
+Biz --> TcpServer : Message response\n{messageCode: "BAL2", ...}
+deactivate Biz
+
+TcpServer -> LayoutMgr : getLayout("BAL2")
+TcpServer -> Layout : encode(response, charset)
+activate Layout
+Layout --> TcpServer : byte[] (85 bytes)
+deactivate Layout
+
+TcpServer -> Protocol : prependLengthField(responseData)
+TcpServer -> Logger : logSend(response, layout, data)
+
+TcpServer ->> TcpClient : ctx.writeAndFlush()\n[TCP Response]
+deactivate TcpServer
+
+' Client receives response
+TcpClient -> TcpClient : channelRead0() triggered
+
+TcpClient -> LayoutMgr : getLayout("BAL2")
+TcpClient -> Layout : decode(bodyData, charset)
+activate Layout
+Layout --> TcpClient : Message response
+deactivate Layout
+
+TcpClient -> Logger : logReceive(response, layout, data)
+
+TcpClient -> TcpClient : future.complete(response)\nUnblock waiting thread
+
+TcpClient --> DemoClient : Message response
+deactivate TcpClient
+
+DemoClient --> User : Message response\n{rspCode: "0000", balance: 1000000}
+deactivate DemoClient
+
+== Health Check (Keep-Alive) ==
+
+HC ->> TcpClient : scheduleAtFixedRate()
+activate HC
+
+loop Every healthCheckInterval
+    HC -> TcpClient : sendHeartbeat()
+    TcpClient ->> TcpServer : PING message
+    TcpServer ->> TcpClient : PONG response
+
+    alt No response in timeout
+        HC -> TcpClient : markConnectionFailed()
+        TcpClient -> TcpClient : Attempt reconnect
+    end
+end
+deactivate HC
+
+== Circuit Breaker State Transition ==
+
+note over CB
+  States:
+  - CLOSED: Normal operation
+  - OPEN: Block all requests
+  - HALF_OPEN: Allow test request
+end note
+
+User -> TcpClient : send() [Multiple failures]
+activate TcpClient
+
+loop Consecutive failures >= threshold
+    TcpClient -> CB : recordFailure()
+end
+
+CB -> CB : Transition to OPEN
+note right: Block requests for\nwaitDurationInOpenState
+
+TcpClient --> User : Exception: Circuit is OPEN
+deactivate TcpClient
+
+... After wait duration ...
+
+CB -> CB : Transition to HALF_OPEN
+note right: Allow single test request
+
+User -> TcpClient : send() [Test request]
+activate TcpClient
+
+alt Test request succeeds
+    TcpClient -> CB : recordSuccess()
+    CB -> CB : Transition to CLOSED
+else Test request fails
+    TcpClient -> CB : recordFailure()
+    CB -> CB : Transition to OPEN
+end
+
+deactivate TcpClient
+
+@enduml

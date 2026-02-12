@@ -1,0 +1,193 @@
+@startuml MCI Framework Message Flow
+
+title Springware MCI Framework - Message Flow Sequence Diagram
+
+skinparam backgroundColor #FEFEFE
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+
+' Participants
+box "Client Application" #LightBlue
+    participant "Application" as App
+    participant "TcpDemoClient" as DemoClient
+    participant "TcpClient" as Client
+end box
+
+box "Client - Encoding/Decoding" #LightGreen
+    participant "LayoutManager" as ClientLayout
+    participant "MessageLayout" as ClientMsgLayout
+end box
+
+box "Network" #LightGray
+    participant "Netty Channel" as Channel
+end box
+
+box "Server - Encoding/Decoding" #LightYellow
+    participant "TcpServer\n(TcpServerHandler)" as Server
+    participant "LayoutManager" as ServerLayout
+    participant "MessageLayout" as ServerMsgLayout
+end box
+
+box "Server Business Logic" #LightPink
+    participant "BizRegistry" as BizReg
+    participant "Biz\n(e.g. BalanceInquiryBiz)" as Biz
+end box
+
+== Request Phase ==
+
+App -> DemoClient : balanceInquiry(accountNo)
+activate DemoClient
+
+DemoClient -> DemoClient : Create Message\n{messageCode: "BAL1"\n fields: {...}}
+
+DemoClient -> Client : send(message)
+activate Client
+
+Client -> ClientLayout : encode(message, charset)
+activate ClientLayout
+
+ClientLayout -> ClientMsgLayout : getLayout("BAL1")
+ClientLayout -> ClientMsgLayout : encode(message)
+activate ClientMsgLayout
+
+note right of ClientMsgLayout
+  Fixed-width encoding:
+  - msgCode (4 bytes)
+  - orgCode (3 bytes)
+  - txDate (8 bytes)
+  - txTime (6 bytes)
+  - seqNo (10 bytes)
+  - accountNo (20 bytes)
+  ...
+end note
+
+ClientMsgLayout --> ClientLayout : byte[] (70 bytes)
+deactivate ClientMsgLayout
+
+ClientLayout --> Client : byte[] encoded data
+deactivate ClientLayout
+
+Client -> Client : prependLengthField(data)\n[4-byte binary big-endian]
+
+Client -> Client : Store in pendingRequests Map\n{messageId → CompletableFuture}
+
+Client -> Channel : writeAndFlush(ByteBuf)
+activate Channel
+
+note over Channel
+  TCP Transmission
+  [LENGTH: 4 bytes] + [PAYLOAD: 70 bytes]
+end note
+
+== Server Processing ==
+
+Channel -> Server : channelRead0(ctx, ByteBuf)
+deactivate Channel
+activate Server
+
+Server -> Server : Extract raw bytes\n(LengthFieldBasedFrameDecoder\nalready stripped length)
+
+Server -> Server : Extract messageCode\nfrom first 4 bytes: "BAL1"
+
+Server -> ServerLayout : getLayout("BAL1")
+activate ServerLayout
+
+ServerLayout -> ServerMsgLayout : decode(bodyData, charset)
+activate ServerMsgLayout
+
+note right of ServerMsgLayout
+  Parse fields by layout:
+  - msgCode = "BAL1"
+  - orgCode = "000"
+  - txDate = "20240117"
+  - accountNo = "123..."
+end note
+
+ServerMsgLayout --> ServerLayout : Message request
+deactivate ServerMsgLayout
+
+ServerLayout --> Server : Message request
+deactivate ServerLayout
+
+Server -> Server : Create MessageContext\n{channel, transportType, remoteAddress}
+
+Server -> BizReg : getBiz("BAL1")
+activate BizReg
+
+BizReg --> Server : BalanceInquiryBiz
+deactivate BizReg
+
+Server -> Biz : execute(request, context)
+activate Biz
+
+note right of Biz
+  Business Logic:
+  1. Extract accountNo
+  2. Query balance from repository
+  3. Build response with rspCode, balance
+end note
+
+Biz -> Biz : Process business logic
+
+Biz --> Server : Message response\n{messageCode: "BAL2"\n rspCode: "0000"\n balance: 1000000}
+deactivate Biz
+
+== Response Phase ==
+
+Server -> ServerLayout : getLayout("BAL2")
+activate ServerLayout
+
+ServerLayout -> ServerMsgLayout : encode(response)
+activate ServerMsgLayout
+
+ServerMsgLayout --> ServerLayout : byte[] (85 bytes)
+deactivate ServerMsgLayout
+
+ServerLayout --> Server : byte[] encoded response
+deactivate ServerLayout
+
+Server -> Server : prependLengthField(responseData)
+
+Server -> Channel : writeAndFlush(ByteBuf)
+activate Channel
+deactivate Server
+
+note over Channel
+  TCP Transmission (Response)
+  [LENGTH: 4 bytes] + [PAYLOAD: 85 bytes]
+end note
+
+Channel -> Client : channelRead0(ctx, ByteBuf)
+deactivate Channel
+activate Client
+
+Client -> Client : Extract messageCode: "BAL2"
+
+Client -> ClientLayout : getLayout("BAL2")
+activate ClientLayout
+
+ClientLayout -> ClientMsgLayout : decode(bodyData, charset)
+activate ClientMsgLayout
+
+ClientMsgLayout --> ClientLayout : Message response
+deactivate ClientMsgLayout
+
+ClientLayout --> Client : Message response
+deactivate ClientLayout
+
+Client -> Client : Match to pendingRequests\nfuture.complete(response)
+
+Client --> DemoClient : Message response
+deactivate Client
+
+DemoClient --> App : Message response\n{rspCode: "0000"\n balance: 1000000}
+deactivate DemoClient
+
+note over App
+  Application processes response:
+  if ("0000".equals(rspCode)) {
+    balance = response.getLong("balance")
+  }
+end note
+
+@enduml

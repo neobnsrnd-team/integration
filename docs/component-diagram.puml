@@ -1,0 +1,128 @@
+@startuml MCI Framework Component Architecture
+
+title Springware MCI Framework - Component Architecture
+
+skinparam backgroundColor #FEFEFE
+skinparam componentStyle uml2
+skinparam defaultFontSize 12
+
+package "demo-mci" #E8F4FD {
+    [TcpDemoClient] as DemoClient
+    [TcpDemoServer] as DemoServer
+
+    package "biz" {
+        [BalanceInquiryBiz]
+        [TransferBiz]
+        [AccountInquiryBiz]
+        [TransactionHistoryBiz]
+        [EchoBiz]
+        [HeartbeatBiz]
+    }
+
+    package "layouts" {
+        [BAL1.yaml] as BAL1
+        [BAL2.yaml] as BAL2
+        [TRF1.yaml] as TRF1
+        [TRF2.yaml] as TRF2
+    }
+}
+
+package "springware-mci-core" #E8F8E8 {
+
+    package "client" {
+        interface "MciClient" as IMciClient
+        [AbstractMciClient]
+        [TcpClient]
+        [CircuitBreaker]
+        [HealthChecker]
+        [ConnectionPool]
+
+        IMciClient <|.. AbstractMciClient
+        AbstractMciClient <|-- TcpClient
+        TcpClient --> CircuitBreaker
+        TcpClient --> HealthChecker
+        TcpClient --> ConnectionPool
+    }
+
+    package "server" {
+        interface "MciServer" as IMciServer
+        [AbstractMciServer]
+        [TcpServer]
+        [MessageHandler]
+        [MessageContext]
+        interface "Biz" as IBiz
+        [BizRegistry]
+
+        IMciServer <|.. AbstractMciServer
+        AbstractMciServer <|-- TcpServer
+        TcpServer --> MessageHandler
+        BizRegistry --> IBiz
+    }
+
+    package "common" {
+        package "core" {
+            [Message]
+            [MessageType]
+            [TransportType]
+        }
+
+        package "layout" {
+            [LayoutManager]
+            [MessageLayout]
+            [FieldDefinition]
+            [YamlLayoutLoader]
+        }
+
+        package "protocol" {
+            [ProtocolConfig]
+            [DefaultMessageCodec]
+            [LengthFieldType]
+        }
+
+        package "logging" {
+            [MessageLogger]
+            [AsyncMessageLogger]
+            [DefaultMessageLogger]
+        }
+    }
+}
+
+package "springware-common" #FFF8E8 {
+    [StringUtils]
+    [ByteUtils]
+    [DateTimeUtils]
+    [MciException]
+}
+
+' Relationships
+DemoClient --> TcpClient
+DemoServer --> TcpServer
+
+DemoServer --> BizRegistry
+BalanceInquiryBiz ..|> IBiz
+TransferBiz ..|> IBiz
+AccountInquiryBiz ..|> IBiz
+TransactionHistoryBiz ..|> IBiz
+EchoBiz ..|> IBiz
+HeartbeatBiz ..|> IBiz
+
+TcpClient --> LayoutManager
+TcpServer --> LayoutManager
+LayoutManager --> MessageLayout
+MessageLayout --> FieldDefinition
+YamlLayoutLoader --> MessageLayout
+
+TcpClient --> ProtocolConfig
+TcpServer --> ProtocolConfig
+
+TcpClient --> MessageLogger
+TcpServer --> MessageLogger
+
+MessageLayout --> Message
+
+BAL1 ..> YamlLayoutLoader : load
+BAL2 ..> YamlLayoutLoader : load
+TRF1 ..> YamlLayoutLoader : load
+TRF2 ..> YamlLayoutLoader : load
+
+@enduml

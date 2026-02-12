@@ -1,0 +1,55 @@
+@startuml MCI Framework Simple Overview
+
+title Springware MCI Framework - Simple Message Flow
+
+skinparam backgroundColor #FEFEFE
+skinparam handwritten false
+skinparam defaultFontSize 14
+
+participant "Client App" as App #LightBlue
+participant "TcpClient" as Client #LightGreen
+participant "TCP Network" as Net #LightGray
+participant "TcpServer" as Server #LightYellow
+participant "Biz Handler" as Biz #LightPink
+
+== 1. 요청 전송 (Request) ==
+
+App -> Client : balanceInquiry(accountNo)
+note right of App
+  Message 생성
+  messageCode: "BAL1"
+end note
+
+Client -> Client : encode(message)\nMessageLayout 사용
+
+Client -> Net : TCP 전송\n[Length 4B] + [Payload 70B]
+
+Net -> Server : 패킷 수신
+
+Server -> Server : decode(bytes)\nMessageLayout 사용
+
+== 2. 비즈니스 처리 (Processing) ==
+
+Server -> Biz : execute(request, context)
+note right of Biz
+  BalanceInquiryBiz
+  - 계좌번호 추출
+  - 잔액 조회
+  - 응답 생성
+end note
+
+Biz --> Server : Message response\nmessageCode: "BAL2"
+
+== 3. 응답 전송 (Response) ==
+
+Server -> Server : encode(response)
+
+Server -> Net : TCP 전송\n[Length 4B] + [Payload 85B]
+
+Net -> Client : 패킷 수신
+
+Client -> Client : decode(bytes)
+
+Client --> App : Message response\nrspCode: "0000"\nbalance: 1000000
+
+@enduml
