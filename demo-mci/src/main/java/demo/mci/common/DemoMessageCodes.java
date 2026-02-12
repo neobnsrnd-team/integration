@@ -32,4 +32,12 @@ public final class DemoMessageCodes {
     // 하트비트
     public static final String HEARTBEAT_REQ = "HBT1";
     public static final String HEARTBEAT_RES = "HBT2";
+
+    // 카드목록조회 (Card List)
+    public static final String CARD_LIST_REQ = "CRD1";
+    public static final String CARD_LIST_RES = "CRD2";
+
+    // 카드사용내역조회 (Card Usage History)
+    public static final String CARD_USAGE_HISTORY_REQ = "CUH1";
+    public static final String CARD_USAGE_HISTORY_RES = "CUH2";
 }

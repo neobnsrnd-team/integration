@@ -26,13 +26,23 @@ public final class DemoConstants {
     public static final String RSP_INSUFFICIENT_BALANCE = "1002";
     public static final String RSP_SYSTEM_ERROR = "9999";
 
-    // 기본 설정
+    // 기본 설정 - Banking
     public static final int DEFAULT_TCP_PORT = 9001;
     public static final int DEFAULT_UDP_PORT = 9002;
     public static final int DEFAULT_HTTP_PORT = 9003;
     public static final int DEFAULT_HTTPS_PORT = 9443;
 
+    // 기본 설정 - Card
+    public static final int DEFAULT_CARD_TCP_PORT = 9011;
+    public static final int DEFAULT_CARD_HTTP_PORT = 9013;
+    public static final int DEFAULT_CARD_HTTPS_PORT = 9444;
+
     public static final String DEFAULT_HOST = "localhost";
+
+    // 카드 응답 코드
+    public static final String RSP_INVALID_CARD = "2001";
+    public static final String RSP_CARD_SUSPENDED = "2002";
+    public static final String RSP_CARD_EXPIRED = "2003";
 
     // 메시지 길이
     public static final int LENGTH_FIELD_SIZE = 4;

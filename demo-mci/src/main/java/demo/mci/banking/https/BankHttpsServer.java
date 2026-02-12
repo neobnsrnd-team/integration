@@ -1,14 +1,10 @@
-package demo.mci.http;
+package demo.mci.banking.https;
 
-import demo.mci.biz.AccountInquiryBiz;
-import demo.mci.biz.BalanceInquiryBiz;
-import demo.mci.biz.EchoBiz;
-import demo.mci.biz.HeartbeatBiz;
-import demo.mci.biz.TransactionHistoryBiz;
-import demo.mci.biz.TransferBiz;
+import demo.mci.banking.biz.*;
 import demo.mci.common.DemoConstants;
 import demo.mci.common.DemoLayoutRegistry;
 import demo.mci.common.DemoMessageCodes;
+import io.netty.handler.ssl.util.SelfSignedCertificate;
 import lombok.extern.slf4j.Slf4j;
 import springware.mci.common.core.Message;
 import springware.mci.common.core.MessageType;
@@ -22,16 +18,21 @@ import springware.mci.server.http.HttpServer;
 import springware.mci.server.http.RestEndpointRegistry;
 
 /**
- * HTTP 데모 서버
- * Biz 패턴을 사용하여 REST API 요청 처리
+ * 뱅킹 HTTPS 서버
+ * 자체 서명 인증서를 사용한 SSL/TLS 통신
  */
 @Slf4j
-public class HttpDemoServer {
+public class BankHttpsServer {
 
     private final HttpServer server;
     private final BizRegistry bizRegistry;
+    private SelfSignedCertificate ssc;
 
-    public HttpDemoServer(int port) {
+    public BankHttpsServer(int port) {
+        this(port, null, null);
+    }
+
+    public BankHttpsServer(int port, String keyStorePath, String keyStorePassword) {
         // 레이아웃 등록
         DemoLayoutRegistry registry = new DemoLayoutRegistry();
         LayoutManager layoutManager = registry.getLayoutManager();
@@ -41,15 +42,42 @@ public class HttpDemoServer {
         registerCustomEndpoints(endpointRegistry);
 
         // 서버 설정
-
-        ServerConfig config = ServerConfig.builder()
-                .serverId("demo-http-server")
-                .port(port)
-                .transportType(TransportType.HTTP)
-                .corsEnabled(true)
-                .healthCheckEnabled(true)
-                .healthCheckPath("/health")
-                .build();
+        ServerConfig config;
+        if (keyStorePath != null && !keyStorePath.isEmpty()) {
+            // 지정된 KeyStore 사용
+            config = ServerConfig.builder()
+                    .serverId("bank-https-server")
+                    .port(port)
+                    .transportType(TransportType.HTTP)
+                    .sslEnabled(true)
+                    .keyStorePath(keyStorePath)
+                    .keyStorePassword(keyStorePassword)
+                    .corsEnabled(true)
+                    .healthCheckEnabled(true)
+                    .healthCheckPath("/health")
+                    .build();
+            log.info("Using KeyStore: {}", keyStorePath);
+        } else {
+            // 자체 서명 인증서 생성 (데모용)
+            try {
+                ssc = new SelfSignedCertificate();
+                config = ServerConfig.builder()
+                        .serverId("bank-https-server")
+                        .port(port)
+                        .transportType(TransportType.HTTP)
+                        .sslEnabled(true)
+                        .sslCertPath(ssc.certificate().getAbsolutePath())
+                        .sslKeyPath(ssc.privateKey().getAbsolutePath())
+                        .corsEnabled(true)
+                        .healthCheckEnabled(true)
+                        .healthCheckPath("/health")
+                        .build();
+                log.info("Using self-signed certificate for demo");
+                log.warn("Self-signed certificates are for testing only. Do not use in production!");
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to create self-signed certificate", e);
+            }
+        }
 
         server = new HttpServer(config, layoutManager,
                 new springware.mci.common.logging.DefaultMessageLogger(), endpointRegistry);
@@ -79,7 +107,7 @@ public class HttpDemoServer {
         // 하트비트
         registry.register("/api/heartbeat", DemoMessageCodes.HEARTBEAT_REQ);
 
-        log.debug("Registered {} demo endpoints", registry.size());
+        log.debug("Registered {} bank endpoints", registry.size());
     }
 
     /**
@@ -142,11 +170,11 @@ public class HttpDemoServer {
      */
     public void start() {
         server.start();
-        log.info("Demo HTTP Server started on port {}", server.getConfig().getPort());
+        log.info("Bank HTTPS Server started on port {}", server.getConfig().getPort());
         log.info("Available endpoints:");
         server.getEndpointRegistry().getAllMappings().forEach((path, code) ->
                 log.info("  {} -> {}", path, code));
-        log.info("Health check: /health");
+        log.info("Health check: https://localhost:{}/health", server.getConfig().getPort());
     }
 
     /**
@@ -154,7 +182,10 @@ public class HttpDemoServer {
      */
     public void stop() {
         server.stop();
-        log.info("Demo HTTP Server stopped");
+        if (ssc != null) {
+            ssc.delete();
+        }
+        log.info("Bank HTTPS Server stopped");
     }
 
     /**
@@ -203,9 +234,11 @@ public class HttpDemoServer {
      * 메인 메서드
      */
     public static void main(String[] args) {
-        int port = args.length > 0 ? Integer.parseInt(args[0]) : DemoConstants.DEFAULT_HTTP_PORT;
+        int port = args.length > 0 ? Integer.parseInt(args[0]) : DemoConstants.DEFAULT_HTTPS_PORT;
+        String keyStorePath = args.length > 1 ? args[1] : null;
+        String keyStorePassword = args.length > 2 ? args[2] : null;
 
-        HttpDemoServer demoServer = new HttpDemoServer(port);
+        BankHttpsServer demoServer = new BankHttpsServer(port, keyStorePath, keyStorePassword);
         demoServer.start();
 
         // 종료 훅

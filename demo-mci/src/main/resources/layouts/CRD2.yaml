@@ -1,0 +1,77 @@
+# 카드목록조회 응답 레이아웃 (가변길이 - 반복부 포함)
+# 헤더(50) + 건수(3) + 반복부(N * 64바이트)
+id: CRD2
+description: 카드목록조회 응답
+
+fields:
+  # 공통 헤더 (50바이트)
+  - name: msgCode
+    length: 4
+    type: S
+
+  - name: orgCode
+    length: 3
+    type: S
+
+  - name: txDate
+    length: 8
+    type: D
+
+  - name: txTime
+    length: 6
+    type: T
+
+  - name: seqNo
+    length: 10
+    type: NS
+
+  - name: rspCode
+    length: 4
+    type: S
+
+  - name: filler
+    length: 15
+    type: S
+
+  # 본문 고정부 (3바이트)
+  - name: cardCount
+    length: 3
+    type: N
+    description: 카드건수
+
+  # 반복부 (N * 64바이트)
+  - name: cards
+    length: 0
+    repeatCountField: cardCount
+    description: 카드목록
+    children:
+      - name: cardNo
+        length: 16
+        type: S
+        masked: true
+        description: 카드번호
+
+      - name: cardName
+        length: 30
+        type: S
+        description: 카드명
+
+      - name: cardType
+        length: 2
+        type: S
+        description: 카드종류 (01:신용, 02:체크, 03:선불)
+
+      - name: status
+        length: 1
+        type: S
+        description: 상태 (1:정상, 2:정지, 9:해지)
+
+      - name: creditLimit
+        length: 15
+        type: N
+        description: 신용한도
+
+      - name: usedAmount
+        length: 15
+        type: N
+        description: 사용금액

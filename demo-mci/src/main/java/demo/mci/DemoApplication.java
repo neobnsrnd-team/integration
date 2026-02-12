@@ -1,16 +1,23 @@
 package demo.mci;
 
+import demo.mci.banking.http.BankHttpClient;
+import demo.mci.banking.http.BankHttpServer;
+import demo.mci.banking.https.BankHttpsClient;
+import demo.mci.banking.https.BankHttpsServer;
+import demo.mci.banking.tcp.BankTcpClient;
+import demo.mci.banking.tcp.BankTcpServer;
+import demo.mci.card.http.CardHttpClient;
+import demo.mci.card.http.CardHttpServer;
+import demo.mci.card.https.CardHttpsClient;
+import demo.mci.card.https.CardHttpsServer;
+import demo.mci.card.tcp.CardTcpClient;
+import demo.mci.card.tcp.CardTcpServer;
 import demo.mci.common.DemoConstants;
-import demo.mci.http.HttpDemoClient;
-import demo.mci.http.HttpDemoServer;
-import demo.mci.https.HttpsDemoClient;
-import demo.mci.https.HttpsDemoServer;
-import demo.mci.tcp.TcpDemoClient;
-import demo.mci.tcp.TcpDemoServer;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * 데모 애플리케이션 메인 클래스
+ * Banking 및 Card 도메인 지원
  */
 @Slf4j
 public class DemoApplication {
@@ -18,61 +25,104 @@ public class DemoApplication {
     public static void main(String[] args) {
         if (args.length == 0) {
             printUsage();
-            args=new String[]{"demo"};
-            //return;
+            args = new String[]{"demo"};
         }
 
         String mode = args[0].toLowerCase();
 
-        if (mode==null) mode="server";
-
         switch (mode) {
+            // ========== Banking TCP ==========
             case "server":
-                runServer(args);
+            case "bank-server":
+                runBankServer(args);
                 break;
             case "client":
-                runClient(args);
+            case "bank-client":
+                runBankClient(args);
                 break;
             case "demo":
-                runDemo();
+            case "bank-demo":
+                runBankDemo();
                 break;
+
+            // ========== Banking HTTP ==========
             case "http-server":
-                runHttpServer(args);
+            case "bank-http-server":
+                runBankHttpServer(args);
                 break;
             case "http-client":
-                runHttpClient(args);
+            case "bank-http-client":
+                runBankHttpClient(args);
                 break;
             case "http-demo":
-                runHttpDemo();
+            case "bank-http-demo":
+                runBankHttpDemo();
                 break;
+
+            // ========== Banking HTTPS ==========
             case "https-server":
-                runHttpsServer(args);
+            case "bank-https-server":
+                runBankHttpsServer(args);
                 break;
             case "https-client":
-                runHttpsClient(args);
+            case "bank-https-client":
+                runBankHttpsClient(args);
                 break;
             case "https-demo":
-                runHttpsDemo();
+            case "bank-https-demo":
+                runBankHttpsDemo();
                 break;
+
+            // ========== Card TCP ==========
+            case "card-server":
+                runCardServer(args);
+                break;
+            case "card-client":
+                runCardClient(args);
+                break;
+            case "card-demo":
+                runCardDemo();
+                break;
+
+            // ========== Card HTTP ==========
+            case "card-http-server":
+                runCardHttpServer(args);
+                break;
+            case "card-http-client":
+                runCardHttpClient(args);
+                break;
+            case "card-http-demo":
+                runCardHttpDemo();
+                break;
+
+            // ========== Card HTTPS ==========
+            case "card-https-server":
+                runCardHttpsServer(args);
+                break;
+            case "card-https-client":
+                runCardHttpsClient(args);
+                break;
+            case "card-https-demo":
+                runCardHttpsDemo();
+                break;
+
             default:
                 printUsage();
         }
     }
 
-    /**
-     * 서버 실행
-     */
-    private static void runServer(String[] args) {
+    // ==================== Banking TCP ====================
+
+    private static void runBankServer(String[] args) {
         int port = args.length > 1 ? Integer.parseInt(args[1]) : DemoConstants.DEFAULT_TCP_PORT;
 
-        TcpDemoServer server = new TcpDemoServer(port);
+        BankTcpServer server = new BankTcpServer(port);
         server.start();
 
         Runtime.getRuntime().addShutdownHook(new Thread(server::stop));
 
-        log.info("Server is running. Press Ctrl+C to stop.");
+        log.info("Bank Server is running. Press Ctrl+C to stop.");
 
-        // 서버 대기
         try {
             Thread.currentThread().join();
         } catch (InterruptedException e) {
@@ -80,19 +130,15 @@ public class DemoApplication {
         }
     }
 
-    /**
-     * 클라이언트 실행
-     */
-    private static void runClient(String[] args) {
+    private static void runBankClient(String[] args) {
         String host = args.length > 1 ? args[1] : DemoConstants.DEFAULT_HOST;
         int port = args.length > 2 ? Integer.parseInt(args[2]) : DemoConstants.DEFAULT_TCP_PORT;
 
-        TcpDemoClient client = new TcpDemoClient(host, port);
+        BankTcpClient client = new BankTcpClient(host, port);
 
         try {
             client.connect();
 
-            // 기본 테스트 시나리오
             log.info("=== Balance Inquiry Test ===");
             client.balanceInquiry("1234567890123456789");
 
@@ -114,56 +160,41 @@ public class DemoApplication {
         }
     }
 
-    /**
-     * 통합 데모 실행 (서버 + 클라이언트)
-     */
-    private static void runDemo() {
+    private static void runBankDemo() {
         int port = DemoConstants.DEFAULT_TCP_PORT;
 
-        // 서버 시작
-        TcpDemoServer server = new TcpDemoServer(port);
+        BankTcpServer server = new BankTcpServer(port);
         server.start();
 
-        // 잠시 대기
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        sleep(1000);
 
-        // 클라이언트 테스트
-        TcpDemoClient client = new TcpDemoClient(DemoConstants.DEFAULT_HOST, port);
+        BankTcpClient client = new BankTcpClient(DemoConstants.DEFAULT_HOST, port);
 
         try {
             client.connect();
 
             log.info("========================================");
-            log.info("         MCI Framework Demo");
+            log.info("       Banking MCI Framework Demo");
             log.info("========================================");
 
-            // 1. 잔액조회
             log.info("\n[1] Balance Inquiry");
             client.balanceInquiry("1234567890123456789");
 
-            // 2. 이체
             log.info("\n[2] Transfer 50,000 won");
             client.transfer("1234567890123456789", "9876543210987654321", 50000);
 
-            // 3. 이체 후 잔액 확인
             log.info("\n[3] Balance after transfer");
             client.balanceInquiry("1234567890123456789");
             client.balanceInquiry("9876543210987654321");
 
-            // 4. 에코 테스트
             log.info("\n[4] Echo Test");
             client.echo("Hello, MCI Framework!");
 
-            // 5. 하트비트
             log.info("\n[5] Heartbeat");
             client.heartbeat();
 
             log.info("\n========================================");
-            log.info("         Demo completed successfully");
+            log.info("    Banking Demo completed successfully");
             log.info("========================================");
 
         } catch (Exception e) {
@@ -174,22 +205,18 @@ public class DemoApplication {
         }
     }
 
-    // ========== HTTP 모드 ==========
+    // ==================== Banking HTTP ====================
 
-    /**
-     * HTTP 서버 실행
-     */
-    private static void runHttpServer(String[] args) {
+    private static void runBankHttpServer(String[] args) {
         int port = args.length > 1 ? Integer.parseInt(args[1]) : DemoConstants.DEFAULT_HTTP_PORT;
 
-        HttpDemoServer server = new HttpDemoServer(port);
+        BankHttpServer server = new BankHttpServer(port);
         server.start();
 
         Runtime.getRuntime().addShutdownHook(new Thread(server::stop));
 
-        log.info("HTTP Server is running. Press Ctrl+C to stop.");
+        log.info("Bank HTTP Server is running. Press Ctrl+C to stop.");
 
-        // 서버 대기
         try {
             Thread.currentThread().join();
         } catch (InterruptedException e) {
@@ -197,19 +224,15 @@ public class DemoApplication {
         }
     }
 
-    /**
-     * HTTP 클라이언트 실행
-     */
-    private static void runHttpClient(String[] args) {
+    private static void runBankHttpClient(String[] args) {
         String host = args.length > 1 ? args[1] : DemoConstants.DEFAULT_HOST;
         int port = args.length > 2 ? Integer.parseInt(args[2]) : DemoConstants.DEFAULT_HTTP_PORT;
 
-        HttpDemoClient client = new HttpDemoClient(host, port);
+        BankHttpClient client = new BankHttpClient(host, port);
 
         try {
             client.connect();
 
-            // 기본 테스트 시나리오
             log.info("=== HTTP Balance Inquiry Test ===");
             client.balanceInquiry("1234567890123456789");
 
@@ -231,56 +254,41 @@ public class DemoApplication {
         }
     }
 
-    /**
-     * HTTP 통합 데모 실행 (서버 + 클라이언트)
-     */
-    private static void runHttpDemo() {
+    private static void runBankHttpDemo() {
         int port = DemoConstants.DEFAULT_HTTP_PORT;
 
-        // 서버 시작
-        HttpDemoServer server = new HttpDemoServer(port);
+        BankHttpServer server = new BankHttpServer(port);
         server.start();
 
-        // 잠시 대기
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        sleep(1000);
 
-        // 클라이언트 테스트
-        HttpDemoClient client = new HttpDemoClient(DemoConstants.DEFAULT_HOST, port);
+        BankHttpClient client = new BankHttpClient(DemoConstants.DEFAULT_HOST, port);
 
         try {
             client.connect();
 
             log.info("========================================");
-            log.info("       HTTP MCI Framework Demo");
+            log.info("     Banking HTTP MCI Framework Demo");
             log.info("========================================");
 
-            // 1. 잔액조회
             log.info("\n[1] HTTP Balance Inquiry");
             client.balanceInquiry("1234567890123456789");
 
-            // 2. 이체
             log.info("\n[2] HTTP Transfer 50,000 won");
             client.transfer("1234567890123456789", "9876543210987654321", 50000);
 
-            // 3. 이체 후 잔액 확인
             log.info("\n[3] Balance after transfer");
             client.balanceInquiry("1234567890123456789");
             client.balanceInquiry("9876543210987654321");
 
-            // 4. 에코 테스트
             log.info("\n[4] HTTP Echo Test");
             client.echo("Hello, HTTP MCI Framework!");
 
-            // 5. 하트비트
             log.info("\n[5] HTTP Heartbeat");
             client.heartbeat();
 
             log.info("\n========================================");
-            log.info("      HTTP Demo completed successfully");
+            log.info("  Banking HTTP Demo completed successfully");
             log.info("========================================");
 
         } catch (Exception e) {
@@ -291,24 +299,20 @@ public class DemoApplication {
         }
     }
 
-    // ========== HTTPS 모드 ==========
+    // ==================== Banking HTTPS ====================
 
-    /**
-     * HTTPS 서버 실행
-     */
-    private static void runHttpsServer(String[] args) {
+    private static void runBankHttpsServer(String[] args) {
         int port = args.length > 1 ? Integer.parseInt(args[1]) : DemoConstants.DEFAULT_HTTPS_PORT;
         String keyStorePath = args.length > 2 ? args[2] : null;
         String keyStorePassword = args.length > 3 ? args[3] : null;
 
-        HttpsDemoServer server = new HttpsDemoServer(port, keyStorePath, keyStorePassword);
+        BankHttpsServer server = new BankHttpsServer(port, keyStorePath, keyStorePassword);
         server.start();
 
         Runtime.getRuntime().addShutdownHook(new Thread(server::stop));
 
-        log.info("HTTPS Server is running. Press Ctrl+C to stop.");
+        log.info("Bank HTTPS Server is running. Press Ctrl+C to stop.");
 
-        // 서버 대기
         try {
             Thread.currentThread().join();
         } catch (InterruptedException e) {
@@ -316,19 +320,15 @@ public class DemoApplication {
         }
     }
 
-    /**
-     * HTTPS 클라이언트 실행
-     */
-    private static void runHttpsClient(String[] args) {
+    private static void runBankHttpsClient(String[] args) {
         String host = args.length > 1 ? args[1] : DemoConstants.DEFAULT_HOST;
         int port = args.length > 2 ? Integer.parseInt(args[2]) : DemoConstants.DEFAULT_HTTPS_PORT;
 
-        HttpsDemoClient client = new HttpsDemoClient(host, port);
+        BankHttpsClient client = new BankHttpsClient(host, port);
 
         try {
             client.connect();
 
-            // 기본 테스트 시나리오
             log.info("=== HTTPS Balance Inquiry Test ===");
             client.balanceInquiry("1234567890123456789");
 
@@ -350,56 +350,41 @@ public class DemoApplication {
         }
     }
 
-    /**
-     * HTTPS 통합 데모 실행 (서버 + 클라이언트)
-     */
-    private static void runHttpsDemo() {
+    private static void runBankHttpsDemo() {
         int port = DemoConstants.DEFAULT_HTTPS_PORT;
 
-        // 서버 시작 (자체 서명 인증서 사용)
-        HttpsDemoServer server = new HttpsDemoServer(port);
+        BankHttpsServer server = new BankHttpsServer(port);
         server.start();
 
-        // 잠시 대기
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        sleep(1000);
 
-        // 클라이언트 테스트 (trustAll 모드)
-        HttpsDemoClient client = new HttpsDemoClient(DemoConstants.DEFAULT_HOST, port);
+        BankHttpsClient client = new BankHttpsClient(DemoConstants.DEFAULT_HOST, port);
 
         try {
             client.connect();
 
             log.info("========================================");
-            log.info("      HTTPS MCI Framework Demo");
+            log.info("    Banking HTTPS MCI Framework Demo");
             log.info("========================================");
 
-            // 1. 잔액조회
             log.info("\n[1] HTTPS Balance Inquiry");
             client.balanceInquiry("1234567890123456789");
 
-            // 2. 이체
             log.info("\n[2] HTTPS Transfer 50,000 won");
             client.transfer("1234567890123456789", "9876543210987654321", 50000);
 
-            // 3. 이체 후 잔액 확인
             log.info("\n[3] Balance after transfer");
             client.balanceInquiry("1234567890123456789");
             client.balanceInquiry("9876543210987654321");
 
-            // 4. 에코 테스트
             log.info("\n[4] HTTPS Echo Test");
             client.echo("Hello, HTTPS MCI Framework!");
 
-            // 5. 하트비트
             log.info("\n[5] HTTPS Heartbeat");
             client.heartbeat();
 
             log.info("\n========================================");
-            log.info("     HTTPS Demo completed successfully");
+            log.info(" Banking HTTPS Demo completed successfully");
             log.info("========================================");
 
         } catch (Exception e) {
@@ -410,53 +395,307 @@ public class DemoApplication {
         }
     }
 
-    /**
-     * 사용법 출력
-     */
+    // ==================== Card TCP ====================
+
+    private static void runCardServer(String[] args) {
+        int port = args.length > 1 ? Integer.parseInt(args[1]) : DemoConstants.DEFAULT_CARD_TCP_PORT;
+
+        CardTcpServer server = new CardTcpServer(port);
+        server.start();
+
+        Runtime.getRuntime().addShutdownHook(new Thread(server::stop));
+
+        log.info("Card Server is running. Press Ctrl+C to stop.");
+
+        try {
+            Thread.currentThread().join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private static void runCardClient(String[] args) {
+        String host = args.length > 1 ? args[1] : DemoConstants.DEFAULT_HOST;
+        int port = args.length > 2 ? Integer.parseInt(args[2]) : DemoConstants.DEFAULT_CARD_TCP_PORT;
+
+        CardTcpClient client = new CardTcpClient(host, port);
+
+        try {
+            client.connect();
+
+            log.info("=== Card List Test ===");
+            client.cardList("CUST001");
+
+            log.info("=== Card Usage History Test ===");
+            client.cardUsageHistory("1234567890123456", "20240101", "20240131");
+
+            log.info("=== All Card tests completed ===");
+
+        } catch (Exception e) {
+            log.error("Card Client error", e);
+        } finally {
+            client.disconnect();
+        }
+    }
+
+    private static void runCardDemo() {
+        int port = DemoConstants.DEFAULT_CARD_TCP_PORT;
+
+        CardTcpServer server = new CardTcpServer(port);
+        server.start();
+
+        sleep(1000);
+
+        CardTcpClient client = new CardTcpClient(DemoConstants.DEFAULT_HOST, port);
+
+        try {
+            client.connect();
+
+            log.info("========================================");
+            log.info("        Card MCI Framework Demo");
+            log.info("========================================");
+
+            log.info("\n[1] Card List Inquiry");
+            client.cardList("CUST001");
+
+            log.info("\n[2] Card Usage History Inquiry");
+            client.cardUsageHistory("1234567890123456", "20240101", "20240131");
+
+            log.info("\n[3] Another Customer's Card List");
+            client.cardList("CUST002");
+
+            log.info("\n========================================");
+            log.info("     Card Demo completed successfully");
+            log.info("========================================");
+
+        } catch (Exception e) {
+            log.error("Card Demo error", e);
+        } finally {
+            client.disconnect();
+            server.stop();
+        }
+    }
+
+    // ==================== Card HTTP ====================
+
+    private static void runCardHttpServer(String[] args) {
+        int port = args.length > 1 ? Integer.parseInt(args[1]) : DemoConstants.DEFAULT_CARD_HTTP_PORT;
+
+        CardHttpServer server = new CardHttpServer(port);
+        server.start();
+
+        Runtime.getRuntime().addShutdownHook(new Thread(server::stop));
+
+        log.info("Card HTTP Server is running. Press Ctrl+C to stop.");
+
+        try {
+            Thread.currentThread().join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private static void runCardHttpClient(String[] args) {
+        String host = args.length > 1 ? args[1] : DemoConstants.DEFAULT_HOST;
+        int port = args.length > 2 ? Integer.parseInt(args[2]) : DemoConstants.DEFAULT_CARD_HTTP_PORT;
+
+        CardHttpClient client = new CardHttpClient(host, port);
+
+        try {
+            client.connect();
+
+            log.info("=== HTTP Card List Test ===");
+            client.cardList("CUST001");
+
+            log.info("=== HTTP Card Usage History Test ===");
+            client.cardUsageHistory("1234567890123456", "20240101", "20240131");
+
+            log.info("=== All HTTP Card tests completed ===");
+
+        } catch (Exception e) {
+            log.error("HTTP Card Client error", e);
+        } finally {
+            client.disconnect();
+        }
+    }
+
+    private static void runCardHttpDemo() {
+        int port = DemoConstants.DEFAULT_CARD_HTTP_PORT;
+
+        CardHttpServer server = new CardHttpServer(port);
+        server.start();
+
+        sleep(1000);
+
+        CardHttpClient client = new CardHttpClient(DemoConstants.DEFAULT_HOST, port);
+
+        try {
+            client.connect();
+
+            log.info("========================================");
+            log.info("      Card HTTP MCI Framework Demo");
+            log.info("========================================");
+
+            log.info("\n[1] HTTP Card List Inquiry");
+            client.cardList("CUST001");
+
+            log.info("\n[2] HTTP Card Usage History Inquiry");
+            client.cardUsageHistory("1234567890123456", "20240101", "20240131");
+
+            log.info("\n========================================");
+            log.info("   Card HTTP Demo completed successfully");
+            log.info("========================================");
+
+        } catch (Exception e) {
+            log.error("HTTP Card Demo error", e);
+        } finally {
+            client.disconnect();
+            server.stop();
+        }
+    }
+
+    // ==================== Card HTTPS ====================
+
+    private static void runCardHttpsServer(String[] args) {
+        int port = args.length > 1 ? Integer.parseInt(args[1]) : DemoConstants.DEFAULT_CARD_HTTPS_PORT;
+        String keyStorePath = args.length > 2 ? args[2] : null;
+        String keyStorePassword = args.length > 3 ? args[3] : null;
+
+        CardHttpsServer server = new CardHttpsServer(port, keyStorePath, keyStorePassword);
+        server.start();
+
+        Runtime.getRuntime().addShutdownHook(new Thread(server::stop));
+
+        log.info("Card HTTPS Server is running. Press Ctrl+C to stop.");
+
+        try {
+            Thread.currentThread().join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private static void runCardHttpsClient(String[] args) {
+        String host = args.length > 1 ? args[1] : DemoConstants.DEFAULT_HOST;
+        int port = args.length > 2 ? Integer.parseInt(args[2]) : DemoConstants.DEFAULT_CARD_HTTPS_PORT;
+
+        CardHttpsClient client = new CardHttpsClient(host, port);
+
+        try {
+            client.connect();
+
+            log.info("=== HTTPS Card List Test ===");
+            client.cardList("CUST001");
+
+            log.info("=== HTTPS Card Usage History Test ===");
+            client.cardUsageHistory("1234567890123456", "20240101", "20240131");
+
+            log.info("=== All HTTPS Card tests completed ===");
+
+        } catch (Exception e) {
+            log.error("HTTPS Card Client error", e);
+        } finally {
+            client.disconnect();
+        }
+    }
+
+    private static void runCardHttpsDemo() {
+        int port = DemoConstants.DEFAULT_CARD_HTTPS_PORT;
+
+        CardHttpsServer server = new CardHttpsServer(port);
+        server.start();
+
+        sleep(1000);
+
+        CardHttpsClient client = new CardHttpsClient(DemoConstants.DEFAULT_HOST, port);
+
+        try {
+            client.connect();
+
+            log.info("========================================");
+            log.info("     Card HTTPS MCI Framework Demo");
+            log.info("========================================");
+
+            log.info("\n[1] HTTPS Card List Inquiry");
+            client.cardList("CUST001");
+
+            log.info("\n[2] HTTPS Card Usage History Inquiry");
+            client.cardUsageHistory("1234567890123456", "20240101", "20240131");
+
+            log.info("\n========================================");
+            log.info("  Card HTTPS Demo completed successfully");
+            log.info("========================================");
+
+        } catch (Exception e) {
+            log.error("HTTPS Card Demo error", e);
+        } finally {
+            client.disconnect();
+            server.stop();
+        }
+    }
+
+    // ==================== Utility ====================
+
+    private static void sleep(int millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
     private static void printUsage() {
         System.out.println("Usage: java -jar demo-mci.jar <mode> [options]");
         System.out.println();
-        System.out.println("TCP Modes:");
-        System.out.println("  server [port]           Start TCP server (default port: 9001)");
-        System.out.println("  client [host] [port]    Start TCP client (default: localhost:9001)");
-        System.out.println("  demo                    Run integrated TCP demo (server + client)");
+        System.out.println("Banking TCP Modes:");
+        System.out.println("  bank-server [port]           Start Banking TCP server (default: 9001)");
+        System.out.println("  bank-client [host] [port]    Start Banking TCP client (default: localhost:9001)");
+        System.out.println("  bank-demo                    Run Banking TCP demo (server + client)");
         System.out.println();
-        System.out.println("HTTP Modes:");
-        System.out.println("  http-server [port]           Start HTTP server (default port: 9003)");
-        System.out.println("  http-client [host] [port]    Start HTTP client (default: localhost:9003)");
-        System.out.println("  http-demo                    Run integrated HTTP demo (server + client)");
+        System.out.println("Banking HTTP Modes:");
+        System.out.println("  bank-http-server [port]           Start Banking HTTP server (default: 9003)");
+        System.out.println("  bank-http-client [host] [port]    Start Banking HTTP client (default: localhost:9003)");
+        System.out.println("  bank-http-demo                    Run Banking HTTP demo (server + client)");
         System.out.println();
-        System.out.println("HTTPS Modes:");
-        System.out.println("  https-server [port] [keystore] [password]  Start HTTPS server (default port: 9443)");
-        System.out.println("  https-client [host] [port]                 Start HTTPS client (default: localhost:9443)");
-        System.out.println("  https-demo                                 Run integrated HTTPS demo (server + client)");
+        System.out.println("Banking HTTPS Modes:");
+        System.out.println("  bank-https-server [port] [keystore] [password]  Start Banking HTTPS server (default: 9443)");
+        System.out.println("  bank-https-client [host] [port]                 Start Banking HTTPS client (default: localhost:9443)");
+        System.out.println("  bank-https-demo                                 Run Banking HTTPS demo (server + client)");
+        System.out.println();
+        System.out.println("Card TCP Modes:");
+        System.out.println("  card-server [port]           Start Card TCP server (default: 9011)");
+        System.out.println("  card-client [host] [port]    Start Card TCP client (default: localhost:9011)");
+        System.out.println("  card-demo                    Run Card TCP demo (server + client)");
+        System.out.println();
+        System.out.println("Card HTTP Modes:");
+        System.out.println("  card-http-server [port]           Start Card HTTP server (default: 9013)");
+        System.out.println("  card-http-client [host] [port]    Start Card HTTP client (default: localhost:9013)");
+        System.out.println("  card-http-demo                    Run Card HTTP demo (server + client)");
+        System.out.println();
+        System.out.println("Card HTTPS Modes:");
+        System.out.println("  card-https-server [port] [keystore] [password]  Start Card HTTPS server (default: 9444)");
+        System.out.println("  card-https-client [host] [port]                 Start Card HTTPS client (default: localhost:9444)");
+        System.out.println("  card-https-demo                                 Run Card HTTPS demo (server + client)");
+        System.out.println();
+        System.out.println("Legacy Modes (backward compatible):");
+        System.out.println("  server, client, demo              -> bank-server, bank-client, bank-demo");
+        System.out.println("  http-server, http-client, http-demo -> bank-http-*");
+        System.out.println("  https-server, https-client, https-demo -> bank-https-*");
         System.out.println();
         System.out.println("Examples:");
-        System.out.println("  java -jar demo-mci.jar server");
-        System.out.println("  java -jar demo-mci.jar server 9001");
-        System.out.println("  java -jar demo-mci.jar client localhost 9001");
-        System.out.println("  java -jar demo-mci.jar demo");
+        System.out.println("  java -jar demo-mci.jar bank-demo");
+        System.out.println("  java -jar demo-mci.jar bank-server 9001");
+        System.out.println("  java -jar demo-mci.jar card-demo");
+        System.out.println("  java -jar demo-mci.jar card-http-demo");
         System.out.println();
-        System.out.println("  java -jar demo-mci.jar http-server");
-        System.out.println("  java -jar demo-mci.jar http-server 9003");
-        System.out.println("  java -jar demo-mci.jar http-client localhost 9003");
-        System.out.println("  java -jar demo-mci.jar http-demo");
-        System.out.println();
-        System.out.println("  java -jar demo-mci.jar https-server");
-        System.out.println("  java -jar demo-mci.jar https-server 9443 /path/to/keystore.p12 password");
-        System.out.println("  java -jar demo-mci.jar https-client localhost 9443");
-        System.out.println("  java -jar demo-mci.jar https-demo");
-        System.out.println();
-        System.out.println("HTTP API Examples (curl):");
-        System.out.println("  curl http://localhost:9003/health");
-        System.out.println("  curl -X POST http://localhost:9003/api/balance \\");
+        System.out.println("Card HTTP API Examples (curl):");
+        System.out.println("  curl http://localhost:9013/health");
+        System.out.println("  curl -X POST http://localhost:9013/api/cards \\");
         System.out.println("       -H \"Content-Type: application/json\" \\");
-        System.out.println("       -d '{\"messageCode\":\"BAL1\",\"fields\":{\"accountNo\":\"1234567890123456789\"}}'");
+        System.out.println("       -d '{\"messageCode\":\"CRD1\",\"fields\":{\"customerId\":\"CUST001\"}}'");
         System.out.println();
-        System.out.println("HTTPS API Examples (curl with self-signed cert):");
-        System.out.println("  curl -k https://localhost:9443/health");
-        System.out.println("  curl -k -X POST https://localhost:9443/api/balance \\");
+        System.out.println("  curl -X POST http://localhost:9013/api/card-history \\");
         System.out.println("       -H \"Content-Type: application/json\" \\");
-        System.out.println("       -d '{\"messageCode\":\"BAL1\",\"fields\":{\"accountNo\":\"1234567890123456789\"}}'");
+        System.out.println("       -d '{\"messageCode\":\"CUH1\",\"fields\":{\"cardNo\":\"1234567890123456\",\"fromDate\":\"20240101\",\"toDate\":\"20240131\"}}'");
     }
 }

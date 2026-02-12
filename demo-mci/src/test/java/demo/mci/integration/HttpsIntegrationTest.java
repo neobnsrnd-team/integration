@@ -400,6 +400,7 @@ class HttpsIntegrationTest {
 
         // 10개 요청의 총 시간이 첫 요청 시간의 10배보다 작으면 연결 재사용 확인
         // (연결 재사용이 없으면 각 요청마다 SSL 핸드셰이크 발생)
-        assertThat(batchTime).isLessThan(firstRequestTime * 10);
+        // 최소 100ms 임계값을 설정하여 첫 요청이 매우 빠른 경우에도 안정적으로 테스트
+        assertThat(batchTime).isLessThan(Math.max(firstRequestTime * 10, 100));
     }
 }

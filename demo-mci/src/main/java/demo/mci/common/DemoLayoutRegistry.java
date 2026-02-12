@@ -21,12 +21,16 @@ public class DemoLayoutRegistry {
     private static final String LAYOUTS_PATH = "/layouts";
     private static final List<String> LAYOUT_FILES = Arrays.asList(
             "HEADER.yaml",
+            // Banking layouts
             "BAL1.yaml", "BAL2.yaml",
             "TRF1.yaml", "TRF2.yaml",
             "TXH1.yaml", "TXH2.yaml",
             "ACT1.yaml", "ACT2.yaml",
             "ECH1.yaml", "ECH2.yaml",
-            "HBT1.yaml", "HBT2.yaml"
+            "HBT1.yaml", "HBT2.yaml",
+            // Card layouts
+            "CRD1.yaml", "CRD2.yaml",
+            "CUH1.yaml", "CUH2.yaml"
     );
 
     private final LayoutManager layoutManager;

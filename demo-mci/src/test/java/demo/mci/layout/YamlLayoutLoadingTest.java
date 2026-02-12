@@ -57,7 +57,7 @@ class YamlLayoutLoadingTest {
         List<MessageLayout> layouts = loader.loadAll(layoutsDir);
 
         // then
-        assertThat(layouts).hasSize(13);
+        assertThat(layouts).hasSize(17);
 
         // 레이아웃 ID 확인
         List<String> layoutIds = layouts.stream()
@@ -66,7 +66,8 @@ class YamlLayoutLoadingTest {
         assertThat(layoutIds).contains(
                 "HEADER", "BAL1", "BAL2", "TRF1", "TRF2",
                 "TXH1", "TXH2", "ACT1", "ACT2",
-                "ECH1", "ECH2", "HBT1", "HBT2"
+                "ECH1", "ECH2", "HBT1", "HBT2",
+                "CRD1", "CRD2", "CUH1", "CUH2"
         );
     }
 
@@ -80,9 +81,11 @@ class YamlLayoutLoadingTest {
         int count = loader.loadAndRegister(layoutsDir, layoutManager);
 
         // then
-        assertThat(count).isEqualTo(13);
+        assertThat(count).isEqualTo(17);
         assertThat(layoutManager.getLayout("BAL1")).isNotNull();
         assertThat(layoutManager.getLayout("TXH2")).isNotNull();
+        assertThat(layoutManager.getLayout("CRD1")).isNotNull();
+        assertThat(layoutManager.getLayout("CUH2")).isNotNull();
     }
 
     @Test

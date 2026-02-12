@@ -1,11 +1,6 @@
-package demo.mci.http;
+package demo.mci.banking.http;
 
-import demo.mci.biz.AccountInquiryBiz;
-import demo.mci.biz.BalanceInquiryBiz;
-import demo.mci.biz.EchoBiz;
-import demo.mci.biz.HeartbeatBiz;
-import demo.mci.biz.TransactionHistoryBiz;
-import demo.mci.biz.TransferBiz;
+import demo.mci.banking.biz.*;
 import demo.mci.common.DemoConstants;
 import demo.mci.common.DemoLayoutRegistry;
 import demo.mci.common.DemoMessageCodes;
@@ -22,16 +17,16 @@ import springware.mci.server.http.HttpServer;
 import springware.mci.server.http.RestEndpointRegistry;
 
 /**
- * HTTP 데모 서버
+ * 뱅킹 HTTP 서버
  * Biz 패턴을 사용하여 REST API 요청 처리
  */
 @Slf4j
-public class HttpDemoServer {
+public class BankHttpServer {
 
     private final HttpServer server;
     private final BizRegistry bizRegistry;
 
-    public HttpDemoServer(int port) {
+    public BankHttpServer(int port) {
         // 레이아웃 등록
         DemoLayoutRegistry registry = new DemoLayoutRegistry();
         LayoutManager layoutManager = registry.getLayoutManager();
@@ -41,9 +36,8 @@ public class HttpDemoServer {
         registerCustomEndpoints(endpointRegistry);
 
         // 서버 설정
-
         ServerConfig config = ServerConfig.builder()
-                .serverId("demo-http-server")
+                .serverId("bank-http-server")
                 .port(port)
                 .transportType(TransportType.HTTP)
                 .corsEnabled(true)
@@ -79,7 +73,7 @@ public class HttpDemoServer {
         // 하트비트
         registry.register("/api/heartbeat", DemoMessageCodes.HEARTBEAT_REQ);
 
-        log.debug("Registered {} demo endpoints", registry.size());
+        log.debug("Registered {} bank endpoints", registry.size());
     }
 
     /**
@@ -142,7 +136,7 @@ public class HttpDemoServer {
      */
     public void start() {
         server.start();
-        log.info("Demo HTTP Server started on port {}", server.getConfig().getPort());
+        log.info("Bank HTTP Server started on port {}", server.getConfig().getPort());
         log.info("Available endpoints:");
         server.getEndpointRegistry().getAllMappings().forEach((path, code) ->
                 log.info("  {} -> {}", path, code));
@@ -154,7 +148,7 @@ public class HttpDemoServer {
      */
     public void stop() {
         server.stop();
-        log.info("Demo HTTP Server stopped");
+        log.info("Bank HTTP Server stopped");
     }
 
     /**
@@ -205,7 +199,7 @@ public class HttpDemoServer {
     public static void main(String[] args) {
         int port = args.length > 0 ? Integer.parseInt(args[0]) : DemoConstants.DEFAULT_HTTP_PORT;
 
-        HttpDemoServer demoServer = new HttpDemoServer(port);
+        BankHttpServer demoServer = new BankHttpServer(port);
         demoServer.start();
 
         // 종료 훅

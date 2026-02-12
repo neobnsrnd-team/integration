@@ -1,0 +1,82 @@
+# 카드사용내역조회 응답 레이아웃 (가변길이 - 반복부 포함)
+# 헤더(50) + 카드번호(16) + 건수(3) + 반복부(N * 70바이트)
+id: CUH2
+description: 카드사용내역조회 응답
+
+fields:
+  # 공통 헤더 (50바이트)
+  - name: msgCode
+    length: 4
+    type: S
+
+  - name: orgCode
+    length: 3
+    type: S
+
+  - name: txDate
+    length: 8
+    type: D
+
+  - name: txTime
+    length: 6
+    type: T
+
+  - name: seqNo
+    length: 10
+    type: NS
+
+  - name: rspCode
+    length: 4
+    type: S
+
+  - name: filler
+    length: 15
+    type: S
+
+  # 본문 고정부 (19바이트)
+  - name: cardNo
+    length: 16
+    type: S
+    masked: true
+    description: 카드번호
+
+  - name: recordCount
+    length: 3
+    type: N
+    description: 사용내역건수
+
+  # 반복부 (N * 70바이트)
+  - name: records
+    length: 0
+    repeatCountField: recordCount
+    description: 사용내역목록
+    children:
+      - name: usageDate
+        length: 8
+        type: D
+        description: 사용일자
+
+      - name: usageTime
+        length: 6
+        type: T
+        description: 사용시간
+
+      - name: merchantName
+        length: 30
+        type: S
+        description: 가맹점명
+
+      - name: usageType
+        length: 1
+        type: S
+        description: 사용구분 (1:일시불, 2:할부)
+
+      - name: amount
+        length: 15
+        type: N
+        description: 사용금액
+
+      - name: approvalNo
+        length: 10
+        type: S
+        description: 승인번호
