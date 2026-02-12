@@ -218,16 +218,80 @@ curl -X POST http://localhost:9003/api/transfer \
 
 ## Running Tests
 
+### All Tests
+
 ```bash
-# Run all tests
+# Run all tests (125 tests)
 mvn test -pl demo-mci
 
-# Run Card integration tests only
+# Run all tests with verbose output
+mvn test -pl demo-mci -Dsurefire.useFile=false
+```
+
+### Integration Tests
+
+```bash
+# All integration tests (TCP, HTTP, HTTPS for both Banking and Card)
+mvn test -pl demo-mci -Dtest="*IntegrationTest"
+
+# Card integration tests only
 mvn test -pl demo-mci -Dtest="Card*IntegrationTest"
 
-# Run Banking integration tests only
-mvn test -pl demo-mci -Dtest="*IntegrationTest" -Dtest="!Card*"
+# Banking TCP integration tests
+mvn test -pl demo-mci -Dtest="ClientServerIntegrationTest"
+
+# Banking HTTP integration tests
+mvn test -pl demo-mci -Dtest="HttpIntegrationTest"
+
+# Banking HTTPS integration tests
+mvn test -pl demo-mci -Dtest="HttpsIntegrationTest"
+
+# Card TCP integration tests
+mvn test -pl demo-mci -Dtest="CardIntegrationTest"
+
+# Card HTTP integration tests
+mvn test -pl demo-mci -Dtest="CardHttpIntegrationTest"
+
+# Card HTTPS integration tests
+mvn test -pl demo-mci -Dtest="CardHttpsIntegrationTest"
 ```
+
+### Unit Tests
+
+```bash
+# All Biz unit tests
+mvn test -pl demo-mci -Dtest="*BizTest"
+
+# Specific Biz tests
+mvn test -pl demo-mci -Dtest="BalanceInquiryBizTest"
+mvn test -pl demo-mci -Dtest="TransferBizTest"
+mvn test -pl demo-mci -Dtest="TransactionHistoryBizTest"
+mvn test -pl demo-mci -Dtest="AccountInquiryBizTest"
+mvn test -pl demo-mci -Dtest="EchoBizTest"
+mvn test -pl demo-mci -Dtest="HeartbeatBizTest"
+
+# YAML layout loading tests
+mvn test -pl demo-mci -Dtest="YamlLayoutLoadingTest"
+```
+
+### Test Summary
+
+| Test Class | Description | Count |
+|------------|-------------|-------|
+| `CardIntegrationTest` | Card TCP client-server | 10 |
+| `CardHttpIntegrationTest` | Card HTTP client-server | 8 |
+| `CardHttpsIntegrationTest` | Card HTTPS client-server | 6 |
+| `ClientServerIntegrationTest` | Banking TCP client-server | 16 |
+| `HttpIntegrationTest` | Banking HTTP client-server | 18 |
+| `HttpsIntegrationTest` | Banking HTTPS client-server | 20 |
+| `BalanceInquiryBizTest` | Balance inquiry logic | 4 |
+| `TransferBizTest` | Transfer logic | 6 |
+| `TransactionHistoryBizTest` | Transaction history logic | 7 |
+| `AccountInquiryBizTest` | Account inquiry logic | 6 |
+| `EchoBizTest` | Echo logic | 6 |
+| `HeartbeatBizTest` | Heartbeat logic | 5 |
+| `YamlLayoutLoadingTest` | YAML layout parsing | 13 |
+| **Total** | | **125** |
 
 ## Architecture
 
