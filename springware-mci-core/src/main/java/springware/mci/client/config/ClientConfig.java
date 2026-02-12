@@ -10,6 +10,7 @@ import springware.mci.common.protocol.ProtocolConfig;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 /**
  * 클라이언트 설정
@@ -156,6 +157,30 @@ public class ClientConfig {
      */
     private final String sslKeyPath;
 
+    // ========== HTTP 전용 설정 ==========
+
+    /**
+     * Base URL (HTTP 클라이언트용, 예: http://api.example.com)
+     */
+    private final String baseUrl;
+
+    /**
+     * HTTP 헤더 (HTTP 클라이언트용)
+     */
+    private final Map<String, String> httpHeaders;
+
+    /**
+     * 리다이렉트 따르기 여부 (HTTP 클라이언트용)
+     */
+    @Builder.Default
+    private final boolean followRedirects = true;
+
+    /**
+     * API 기본 경로 (HTTP 클라이언트용)
+     */
+    @Builder.Default
+    private final String apiBasePath = "/api";
+
     /**
      * 서킷 브레이커 설정
      */
@@ -189,6 +214,31 @@ public class ClientConfig {
                 .host(host)
                 .port(port)
                 .transportType(TransportType.UDP)
+                .build();
+    }
+
+    /**
+     * 기본 HTTP 클라이언트 설정
+     */
+    public static ClientConfig httpClient(String host, int port) {
+        return ClientConfig.builder()
+                .clientId("http-client-" + System.currentTimeMillis())
+                .host(host)
+                .port(port)
+                .transportType(TransportType.HTTP)
+                .build();
+    }
+
+    /**
+     * HTTP 클라이언트 설정 (Base URL 사용)
+     */
+    public static ClientConfig httpClient(String baseUrl) {
+        return ClientConfig.builder()
+                .clientId("http-client-" + System.currentTimeMillis())
+                .host("localhost")  // dummy - baseUrl이 우선
+                .port(80)           // dummy - baseUrl이 우선
+                .baseUrl(baseUrl)
+                .transportType(TransportType.HTTP)
                 .build();
     }
 

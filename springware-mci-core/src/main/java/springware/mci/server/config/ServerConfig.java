@@ -8,6 +8,7 @@ import springware.mci.common.protocol.ProtocolConfig;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 /**
  * 서버 설정
@@ -131,6 +132,37 @@ public class ServerConfig {
      */
     private final String sslKeyPath;
 
+    // ========== HTTP 전용 설정 ==========
+
+    /**
+     * CORS 활성화 여부 (HTTP 서버용)
+     */
+    @Builder.Default
+    private final boolean corsEnabled = false;
+
+    /**
+     * CORS 허용 오리진 목록 (HTTP 서버용)
+     */
+    private final List<String> corsAllowedOrigins;
+
+    /**
+     * API 기본 경로 (HTTP 서버용)
+     */
+    @Builder.Default
+    private final String apiBasePath = "/api";
+
+    /**
+     * 헬스 체크 활성화 여부 (HTTP 서버용)
+     */
+    @Builder.Default
+    private final boolean healthCheckEnabled = true;
+
+    /**
+     * 헬스 체크 경로 (HTTP 서버용)
+     */
+    @Builder.Default
+    private final String healthCheckPath = "/health";
+
     /**
      * 기본 TCP 서버 설정
      */
@@ -150,6 +182,19 @@ public class ServerConfig {
                 .serverId("udp-server-" + System.currentTimeMillis())
                 .port(port)
                 .transportType(TransportType.UDP)
+                .build();
+    }
+
+    /**
+     * 기본 HTTP 서버 설정
+     */
+    public static ServerConfig httpServer(int port) {
+        return ServerConfig.builder()
+                .serverId("http-server-" + System.currentTimeMillis())
+                .port(port)
+                .transportType(TransportType.HTTP)
+                .corsEnabled(true)
+                .healthCheckEnabled(true)
                 .build();
     }
 
