@@ -43,6 +43,13 @@
             <artifactId>logback-classic</artifactId>
         </dependency>
 
+        <!-- BouncyCastle for self-signed certificate generation (HTTPS demo) -->
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcpkix-jdk18on</artifactId>
+            <version>1.77</version>
+        </dependency>
+
         <!-- Test -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>

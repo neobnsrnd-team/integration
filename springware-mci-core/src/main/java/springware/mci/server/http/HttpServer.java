@@ -203,8 +203,9 @@ public class HttpServer extends AbstractMciServer {
             log.info("Client authentication optional");
         }
 
-        // SSL 프로토콜 설정
-        if (config.getSslProtocol() != null && !config.getSslProtocol().isEmpty()) {
+        // SSL 프로토콜 설정 (TLSv1.2, TLSv1.3 등 구체적인 버전만 지정)
+        if (config.getSslProtocol() != null && !config.getSslProtocol().isEmpty()
+                && !config.getSslProtocol().equals("TLS")) {
             builder.protocols(config.getSslProtocol());
         }
 

@@ -30,6 +30,7 @@ public final class DemoConstants {
     public static final int DEFAULT_TCP_PORT = 9001;
     public static final int DEFAULT_UDP_PORT = 9002;
     public static final int DEFAULT_HTTP_PORT = 9003;
+    public static final int DEFAULT_HTTPS_PORT = 9443;
 
     public static final String DEFAULT_HOST = "localhost";
 

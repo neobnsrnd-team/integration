@@ -3,6 +3,8 @@ package demo.mci;
 import demo.mci.common.DemoConstants;
 import demo.mci.http.HttpDemoClient;
 import demo.mci.http.HttpDemoServer;
+import demo.mci.https.HttpsDemoClient;
+import demo.mci.https.HttpsDemoServer;
 import demo.mci.tcp.TcpDemoClient;
 import demo.mci.tcp.TcpDemoServer;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +44,15 @@ public class DemoApplication {
                 break;
             case "http-demo":
                 runHttpDemo();
+                break;
+            case "https-server":
+                runHttpsServer(args);
+                break;
+            case "https-client":
+                runHttpsClient(args);
+                break;
+            case "https-demo":
+                runHttpsDemo();
                 break;
             default:
                 printUsage();
@@ -280,6 +291,125 @@ public class DemoApplication {
         }
     }
 
+    // ========== HTTPS 모드 ==========
+
+    /**
+     * HTTPS 서버 실행
+     */
+    private static void runHttpsServer(String[] args) {
+        int port = args.length > 1 ? Integer.parseInt(args[1]) : DemoConstants.DEFAULT_HTTPS_PORT;
+        String keyStorePath = args.length > 2 ? args[2] : null;
+        String keyStorePassword = args.length > 3 ? args[3] : null;
+
+        HttpsDemoServer server = new HttpsDemoServer(port, keyStorePath, keyStorePassword);
+        server.start();
+
+        Runtime.getRuntime().addShutdownHook(new Thread(server::stop));
+
+        log.info("HTTPS Server is running. Press Ctrl+C to stop.");
+
+        // 서버 대기
+        try {
+            Thread.currentThread().join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
+     * HTTPS 클라이언트 실행
+     */
+    private static void runHttpsClient(String[] args) {
+        String host = args.length > 1 ? args[1] : DemoConstants.DEFAULT_HOST;
+        int port = args.length > 2 ? Integer.parseInt(args[2]) : DemoConstants.DEFAULT_HTTPS_PORT;
+
+        HttpsDemoClient client = new HttpsDemoClient(host, port);
+
+        try {
+            client.connect();
+
+            // 기본 테스트 시나리오
+            log.info("=== HTTPS Balance Inquiry Test ===");
+            client.balanceInquiry("1234567890123456789");
+
+            log.info("=== HTTPS Transfer Test ===");
+            client.transfer("1234567890123456789", "9876543210987654321", 100000);
+
+            log.info("=== HTTPS Echo Test ===");
+            client.echo("Hello, HTTPS MCI Framework!");
+
+            log.info("=== HTTPS Heartbeat Test ===");
+            client.heartbeat();
+
+            log.info("=== All HTTPS tests completed ===");
+
+        } catch (Exception e) {
+            log.error("HTTPS Client error", e);
+        } finally {
+            client.disconnect();
+        }
+    }
+
+    /**
+     * HTTPS 통합 데모 실행 (서버 + 클라이언트)
+     */
+    private static void runHttpsDemo() {
+        int port = DemoConstants.DEFAULT_HTTPS_PORT;
+
+        // 서버 시작 (자체 서명 인증서 사용)
+        HttpsDemoServer server = new HttpsDemoServer(port);
+        server.start();
+
+        // 잠시 대기
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
+        // 클라이언트 테스트 (trustAll 모드)
+        HttpsDemoClient client = new HttpsDemoClient(DemoConstants.DEFAULT_HOST, port);
+
+        try {
+            client.connect();
+
+            log.info("========================================");
+            log.info("      HTTPS MCI Framework Demo");
+            log.info("========================================");
+
+            // 1. 잔액조회
+            log.info("\n[1] HTTPS Balance Inquiry");
+            client.balanceInquiry("1234567890123456789");
+
+            // 2. 이체
+            log.info("\n[2] HTTPS Transfer 50,000 won");
+            client.transfer("1234567890123456789", "9876543210987654321", 50000);
+
+            // 3. 이체 후 잔액 확인
+            log.info("\n[3] Balance after transfer");
+            client.balanceInquiry("1234567890123456789");
+            client.balanceInquiry("9876543210987654321");
+
+            // 4. 에코 테스트
+            log.info("\n[4] HTTPS Echo Test");
+            client.echo("Hello, HTTPS MCI Framework!");
+
+            // 5. 하트비트
+            log.info("\n[5] HTTPS Heartbeat");
+            client.heartbeat();
+
+            log.info("\n========================================");
+            log.info("     HTTPS Demo completed successfully");
+            log.info("========================================");
+
+        } catch (Exception e) {
+            log.error("HTTPS Demo error", e);
+        } finally {
+            client.disconnect();
+            server.stop();
+        }
+    }
+
     /**
      * 사용법 출력
      */
@@ -296,6 +426,11 @@ public class DemoApplication {
         System.out.println("  http-client [host] [port]    Start HTTP client (default: localhost:9003)");
         System.out.println("  http-demo                    Run integrated HTTP demo (server + client)");
         System.out.println();
+        System.out.println("HTTPS Modes:");
+        System.out.println("  https-server [port] [keystore] [password]  Start HTTPS server (default port: 9443)");
+        System.out.println("  https-client [host] [port]                 Start HTTPS client (default: localhost:9443)");
+        System.out.println("  https-demo                                 Run integrated HTTPS demo (server + client)");
+        System.out.println();
         System.out.println("Examples:");
         System.out.println("  java -jar demo-mci.jar server");
         System.out.println("  java -jar demo-mci.jar server 9001");
@@ -307,9 +442,20 @@ public class DemoApplication {
         System.out.println("  java -jar demo-mci.jar http-client localhost 9003");
         System.out.println("  java -jar demo-mci.jar http-demo");
         System.out.println();
+        System.out.println("  java -jar demo-mci.jar https-server");
+        System.out.println("  java -jar demo-mci.jar https-server 9443 /path/to/keystore.p12 password");
+        System.out.println("  java -jar demo-mci.jar https-client localhost 9443");
+        System.out.println("  java -jar demo-mci.jar https-demo");
+        System.out.println();
         System.out.println("HTTP API Examples (curl):");
         System.out.println("  curl http://localhost:9003/health");
         System.out.println("  curl -X POST http://localhost:9003/api/balance \\");
+        System.out.println("       -H \"Content-Type: application/json\" \\");
+        System.out.println("       -d '{\"messageCode\":\"BAL1\",\"fields\":{\"accountNo\":\"1234567890123456789\"}}'");
+        System.out.println();
+        System.out.println("HTTPS API Examples (curl with self-signed cert):");
+        System.out.println("  curl -k https://localhost:9443/health");
+        System.out.println("  curl -k -X POST https://localhost:9443/api/balance \\");
         System.out.println("       -H \"Content-Type: application/json\" \\");
         System.out.println("       -d '{\"messageCode\":\"BAL1\",\"fields\":{\"accountNo\":\"1234567890123456789\"}}'");
     }
